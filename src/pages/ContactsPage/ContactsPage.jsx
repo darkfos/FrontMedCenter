@@ -1,21 +1,21 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Phone, 
   Mail, 
   MapPin, 
   Clock, 
-  Instagram, 
-  Facebook, 
-  Youtube,
   Heart,
   Stethoscope,
   Shield,
-  ArrowRight
+  HelpCircle,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import './ContactsPage.css';
 
 const ContactsPage = () => {
+  const [expandedFaq, setExpandedFaq] = useState(null);
+
   const contacts = {
     address: 'ул. Медицинская, д. 15, Москва, 127006',
     phone: '+7 (495) 123-45-67',
@@ -51,11 +51,36 @@ const ContactsPage = () => {
     }
   ];
 
-  const socialLinks = [
-    { icon: Instagram, link: 'https://instagram.com/medicare', label: 'Instagram' },
-    { icon: Facebook, link: 'https://facebook.com/medicare', label: 'Facebook' },
-    { icon: Youtube, link: 'https://youtube.com/medicare', label: 'YouTube' }
+  const faqItems = [
+    {
+      question: 'Как записаться на прием к врачу?',
+      answer: 'Вы можете записаться на прием по телефону +7 (495) 123-45-67, через форму онлайн-записи на нашем сайте или лично посетив регистратуру медицинского центра. Для записи онлайн потребуется указать ваши контактные данные и выбрать удобное время.'
+    },
+    {
+      question: 'Какие документы нужны для первичного приема?',
+      answer: 'При первом посещении необходимо иметь при себе паспорт, полис ОМС (при наличии) и СНИЛС. Если у вас есть результаты предыдущих обследований или выписки из других медицинских учреждений, рекомендуем взять их с собой.'
+    },
+    {
+      question: 'Работаете ли вы по полисам ДМС?',
+      answer: 'Да, мы сотрудничаем с большинством страховых компаний. Пожалуйста, уточните у вашей страховой компании, входит ли наш медицинский центр в список партнеров, и принесите полис ДМС с паспортом на первый прием.'
+    },
+    {
+      question: 'Можно ли вызвать врача на дом?',
+      answer: 'Да, мы предоставляем услугу вызова врача на дом. Услуга доступна для жителей Москвы в пределах МКАД. Для вызова врача на дом позвоните по телефону +7 (495) 123-45-67 и предоставьте необходимую информацию о пациенте и адресе.'
+    },
+    {
+      question: 'Как узнать стоимость услуг?',
+      answer: 'Полный прайс-лист услуг доступен на нашем сайте в разделе "Услуги и цены". Вы также можете уточнить стоимость конкретной услуги по телефону регистратуры. Для комплексных обследований и программ проводится индивидуальный расчет.'
+    },
+    {
+      question: 'Есть ли у вас услуги для иностранных граждан?',
+      answer: 'Да, мы оказываем медицинскую помощь иностранным гражданам. Прием ведется на русском и английском языках. Для оформления медицинской документации может потребоваться перевод паспорта. Все услуги для иностранных граждан предоставляются на платной основе.'
+    }
   ];
+
+  const toggleFaq = (index) => {
+    setExpandedFaq(expandedFaq === index ? null : index);
+  };
 
   return (
     <div className="contacts-page">
@@ -208,48 +233,35 @@ const ContactsPage = () => {
                   </div>
                 </div>
 
-                <div className="contacts-social">
+                {/* Секция с часто задаваемыми вопросами */}
+                <div className="contacts-faq-section">
                   <h3 className="contacts-section-title">
-                    <Shield size={18} />
-                    Мы в социальных сетях
+                    <HelpCircle size={18} />
+                    Часто задаваемые вопросы
                   </h3>
-                  <div className="social-links">
-                    {socialLinks.map((social, index) => (
-                      <a
-                        key={index}
-                        href={social.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="social-link"
+                  <div className="faq-list">
+                    {faqItems.map((item, index) => (
+                      <div 
+                        key={index} 
+                        className={`faq-item ${expandedFaq === index ? 'expanded' : ''}`}
+                        onClick={() => toggleFaq(index)}
                       >
-                        <div className="social-icon">
-                          <social.icon size={20} />
+                        <div className="faq-question">
+                          <div className="faq-question-content">
+                            <span className="faq-number">0{index + 1}</span>
+                            <span className="faq-text">{item.question}</span>
+                          </div>
+                          <div className="faq-icon">
+                            {expandedFaq === index ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                          </div>
                         </div>
-                        <span>{social.label}</span>
-                      </a>
+                        {expandedFaq === index && (
+                          <div className="faq-answer">
+                            <p>{item.answer}</p>
+                          </div>
+                        )}
+                      </div>
                     ))}
-                  </div>
-                </div>
-
-                <div className="contacts-quick-links">
-                  <h3 className="contacts-section-title">Полезные ссылки</h3>
-                  <div className="quick-links-list">
-                    <Link to="/appointment" className="quick-link">
-                      <ArrowRight size={16} />
-                      <span>Записаться на прием</span>
-                    </Link>
-                    <Link to="/doctors" className="quick-link">
-                      <ArrowRight size={16} />
-                      <span>Наши врачи</span>
-                    </Link>
-                    <Link to="/services" className="quick-link">
-                      <ArrowRight size={16} />
-                      <span>Услуги и цены</span>
-                    </Link>
-                    <Link to="/faq" className="quick-link">
-                      <ArrowRight size={16} />
-                      <span>Часто задаваемые вопросы</span>
-                    </Link>
                   </div>
                 </div>
               </div>
@@ -275,11 +287,16 @@ const ContactsPage = () => {
                   <Shield size={24} />
                 </div>
                 <div className="note-content">
-                  <h3>Лицензии и сертификаты</h3>
+                  <h3>Официальный сайт</h3>
                   <p>
-                    Мы работаем на основании лицензии № ЛО-77-01-012345 от 01.01.2023. 
-                    Все медицинские услуги оказываются в соответствии с законодательством РФ.
+                    Вся актуальная информация о наших услугах, врачах и ценах доступна на официальном сайте. 
+                    Для получения информации звоните по телефону или посетите наш сайт.
                   </p>
+                  <div className="website-link">
+                    <a href="https://medicare-clinic.ru" target="_blank" rel="noopener noreferrer">
+                      medicare-clinic.ru
+                    </a>
+                  </div>
                 </div>
               </div>
             </div>

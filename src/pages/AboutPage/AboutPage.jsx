@@ -31,7 +31,7 @@ const AboutPage = () => {
       position: 'Главный врач',
       specialty: 'Терапевт',
       experience: 25,
-      image: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=400&h=400&fit=crop&crop=face',
+      image: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSQiNYk6cBd6bMoRqyly9gQaMDGUlNeLl4tag&s',
       description: 'Врач с 25-летним стажем, специалист по традиционной диагностике'
     },
     {
@@ -40,7 +40,7 @@ const AboutPage = () => {
       position: 'Заведующая отделением',
       specialty: 'Кардиолог',
       experience: 20,
-      image: 'https://images.unsplash.com/photo-1594824434340-7e7dfc37c84b?w=400&h=400&fit=crop&crop=face',
+      image: 'https://www.cardio.ru/wp-content/uploads/zvezdochetovana.webp',
       description: 'Ведущий кардиолог, эксперт по профилактике сердечно-сосудистых заболеваний'
     },
     {
@@ -49,17 +49,8 @@ const AboutPage = () => {
       position: 'Главный хирург',
       specialty: 'Хирург-ортопед',
       experience: 30,
-      image: 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=400&h=400&fit=crop&crop=face',
+      image: 'https://asclinic.ru/userfls/cck/medium/48_lebedev-andrey-vladimirovi.jpg',
       description: 'Опытный хирург с классическим подходом к лечению'
-    },
-    {
-      id: 4,
-      name: 'Елена Сидорова',
-      position: 'Педиатр',
-      specialty: 'Детский врач',
-      experience: 22,
-      image: 'https://images.unsplash.com/photo-1591604021695-0c69b7c05981?w=400&h=400&fit=crop&crop=face',
-      description: 'Врач с особым подходом к маленьким пациентам'
     }
   ];
 
@@ -150,7 +141,7 @@ const AboutPage = () => {
             <div className="about-hero-image">
               <div className="about-image-wrapper">
                 <img 
-                  src="https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=800&h=600&fit=crop" 
+                  src="https://thumbs.dreamstime.com/b/%D0%B2%D1%80%D0%B0%D1%87-%D0%BF%D0%BE%D1%81%D0%B5%D1%89%D0%B0%D1%8E%D1%89%D0%B8%D0%B9-%D1%81%D1%82%D0%B0%D1%80%D1%88%D0%B5%D0%B3%D0%BE-%D0%BF%D0%B0%D1%86%D0%B8%D0%B5%D0%BD%D1%82%D0%B0-%D0%BD%D0%B0-%D0%B8%D0%B7%D0%BE%D0%BB%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%BD%D0%BE%D0%B9-%D0%B8%D0%BB%D0%BB%D1%8E%D1%81%D1%82%D1%80%D0%B0%D1%86%D0%B8%D0%B8-253261169.jpg" 
                   alt="Клиника MediCare" 
                 />
                 <div className="about-image-overlay"></div>
@@ -362,14 +353,6 @@ const AboutPage = () => {
               </div>
               <h3 className="about-certificate-title">Лучшая клиника</h3>
               <p className="about-certificate-description">В рейтинге частных клиник города</p>
-            </div>
-            
-            <div className="about-certificate-card">
-              <div className="about-certificate-icon">
-                <TrendingUp size={32} />
-              </div>
-              <h3 className="about-certificate-title">28 лет опыта</h3>
-              <p className="about-certificate-description">Непрерывная работа с 1995 года</p>
             </div>
             
             <div className="about-certificate-card">
