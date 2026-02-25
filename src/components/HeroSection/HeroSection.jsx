@@ -1,25 +1,25 @@
 import React, { useState } from 'react';
 import { User, Phone, Plus, Calendar, ChevronRight } from 'lucide-react';
+import { useForm, Controller } from "react-hook-form";
+
+import { ConsultAPI} from "../../api/consult";
 import './HeroSection.css';
 
 const HeroSection = () => {
-  const [formData, setFormData] = useState({
-    name: '',
-    phone: '',
-    goals: ''
-  });
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
+  const { control, handleSubmit, register, setError, formState: { errors } } = useForm();
+  const [isSaveConsult, setIsSaveConsult] = useState(false);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    console.log('Form submitted:', formData);
+  const handleSubmitConsultForm = async (data) => {
+      const result = await ConsultAPI.createConsult(data.username, data.phone, data.complaints);
+
+      if (result) {
+        return result.forEach(errorField => (
+            setError(errorField, { message: 'Неверно заполненное поле' })
+        ))
+      }
+
+      setIsSaveConsult(true);
   };
 
   return (
@@ -64,18 +64,28 @@ const HeroSection = () => {
               <h2 className="hero-form-title">Первичная консультация</h2>
               <p className="hero-form-subtitle">Бесплатно • 45 минут • Онлайн или в клинике</p>
 
-              <form className="hero-form" onSubmit={handleSubmit}>
+              <form className="hero-form" onSubmit={handleSubmit(handleSubmitConsultForm)}>
                 <div className="hero-input-group">
                   <div className="hero-input-icon-wrapper">
                     <User size={18} color="#10b981" />
                   </div>
-                  <input
-                    type="text"
-                    name="name"
-                    placeholder="Ваше имя"
-                    className="hero-input"
-                    value={formData.name}
-                    onChange={handleChange}
+                  <Controller
+                    name="username"
+                    control={control}
+                    rules={{ required: { value: true, message: 'Пропущено обязательное поле' }}}
+                    render={({ field }) => (
+                        <div>
+                          <input
+                              type="text"
+                              placeholder="Ваше имя"
+                              className="hero-input"
+                              {...field}
+                          />
+                          { errors.username && (
+                              <span className='form_field__error'>{errors.username.message}</span>
+                          )}
+                        </div>
+                    ) }
                   />
                 </div>
 
@@ -83,13 +93,22 @@ const HeroSection = () => {
                   <div className="hero-input-icon-wrapper">
                     <Phone size={18} color="#10b981" />
                   </div>
-                  <input
-                    type="tel"
-                    name="phone"
-                    placeholder="Номер телефона"
-                    className="hero-input"
-                    value={formData.phone}
-                    onChange={handleChange}
+                  <Controller
+                      render={({ field }) => (
+                          <div>
+                            <input
+                                type="tel"
+                                placeholder="Номер телефона"
+                                className="hero-input"
+                                {...field}
+                            />
+                            { errors.phone && (
+                                <span className='form_field__error'>{errors.phone.message}</span>
+                            )}
+                          </div>
+                      )}
+                      name="phone"
+                      control={control}
                   />
                 </div>
 
@@ -99,15 +118,28 @@ const HeroSection = () => {
                   </div>
                   <div className="hero-textarea-wrapper">
                     <label className="hero-textarea-label">Ваши цели здоровья</label>
-                    <textarea
-                      name="goals"
-                      placeholder="Расскажите, что вас беспокоит"
-                      className="hero-textarea"
-                      value={formData.goals}
-                      onChange={handleChange}
-                    ></textarea>
+                    <Controller
+                        render={({ field }) => (
+                            <div>
+                              <textarea
+                                  placeholder="Расскажите, что вас беспокоит"
+                                  className="hero-textarea"
+                                  {...field}
+                              />
+                              { errors.complaints && (
+                                  <span className='form_field__error'>{errors.complaints.message}</span>
+                              )}
+                            </div>
+                        )}
+                        name="complaints"
+                        control={control}
+                    />
                   </div>
                 </div>
+
+                {isSaveConsult && (
+                    <span className="form_field__success">Запрос на консультацию был отправлен!</span>
+                ) }
 
                 <button type="submit" className="hero-submit-button">
                   Записаться на консультацию

@@ -1,0 +1,13 @@
+.form_field__error {
+    color: #c53030;
+    font-size: 0.9rem;
+    display: block;
+    width: 100%;
+}
+
+.form_field__success {
+    color: #0d9366;
+    font-size: 0.9rem;
+    display: block;
+    width: 100%;
+}
