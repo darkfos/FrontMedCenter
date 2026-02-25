@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { 
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import {
   Stethoscope, 
   Heart, 
   Brain, 
@@ -19,25 +18,44 @@ import {
   Users,
   Award,
   Star,
-  Sparkles
+  Sparkles,
 } from 'lucide-react';
+
+import { ClinicAPI} from "../../api/clinic";
 import './ServicesPage.css';
 
 const ServicesPage = () => {
+  const [clinicCategories, setClinicCategories] = useState([]);
+
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedService, setSelectedService] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const categories = [
-    { id: 'all', name: 'Все услуги', icon: Stethoscope, color: '#10b981' },
-    { id: 'therapy', name: 'Терапия', icon: Heart, color: '#ef4444' },
-    { id: 'neurology', name: 'Неврология', icon: Brain, color: '#8b5cf6' },
-    { id: 'orthopedics', name: 'Ортопедия', icon: Bone, color: '#f59e0b' },
-    { id: 'ophthalmology', name: 'Офтальмология', icon: Eye, color: '#0ea5e9' },
-    { id: 'dentistry', name: 'Стоматология', icon: Scissors, color: '#06b6d4' },
-    { id: 'pediatrics', name: 'Педиатрия', icon: Baby, color: '#ec4899' },
-    { id: 'diagnostics', name: 'Диагностика', icon: Pill, color: '#84cc16' }
-  ];
+
+  const serviceCategoryIcon = useCallback((iconName) => {
+    const icons = {
+      'all': [<Stethoscope size={20} />, '#10b981'],
+      'therapy': [<Heart size={20} />, '#ef4444'],
+      'neurology': [<Brain size={20} />, '#8b5cf6'],
+      'orthopedics': [<Bone size={20} />, '#f59e0b'],
+      'ophthalmology': [<Eye size={20} />, '#0ea5e9'],
+      'dentistry': [<Scissors size={20} />, '#06b6d4'],
+      'pediatrics': [<Baby size={20} />, '#ec4899'],
+      'diagnostics': [<Pill size={20} />, '#84cc16']
+    };
+
+    return icons[iconName];
+  }, [clinicCategories]);
+
+  const allServices = useMemo(() => {
+    let cntService = 0;
+
+    Object.keys(clinicCategories).forEach(category => {
+      cntService += clinicCategories[category].services.length
+    });
+
+    return cntService;
+  }, [clinicCategories]);
 
   const services = [
     {
@@ -216,6 +234,12 @@ const ServicesPage = () => {
     alert(`Вы выбрали услугу: ${selectedService.name}\nСтоимость: ${selectedService.price}\nНаправляем вас к записи на прием...`);
   };
 
+  useEffect(() => {
+    ClinicAPI.all().then(data => {
+      setClinicCategories(data);
+    });
+  }, []);
+
   return (
     <div className="services-page">
       <section className="services-hero">
@@ -270,22 +294,37 @@ const ServicesPage = () => {
           </div>
           
           <div className="specialties-grid">
-            {categories.map((category) => (
+            <button
+                className={`specialty-card ${selectedCategory === 'all' ? 'selected' : ''}`}
+                onClick={() => setSelectedCategory('all')}
+                style={{ '--specialty-color': serviceCategoryIcon('all')[1] }}
+            >
+              <div className="specialty-icon">
+                { serviceCategoryIcon('all')[0] }
+              </div>
+              <div className="specialty-info">
+                <span className="specialty-name">Все услуги</span>
+                <span className="specialty-count">
+                    {allServices} услуг
+                  </span>
+              </div>
+            </button>
+            {Object.keys(clinicCategories).map((category) => (
               <button
-                key={category.id}
-                className={`specialty-card ${selectedCategory === category.id ? 'selected' : ''}`}
-                onClick={() => setSelectedCategory(category.id)}
-                style={{ '--specialty-color': category.color }}
+                key={category}
+                className={`specialty-card ${selectedCategory === category ? 'selected' : ''}`}
+                onClick={() => setSelectedCategory(category)}
+                style={{ '--specialty-color': serviceCategoryIcon(clinicCategories[category].name)[1] }}
               >
                 <div className="specialty-icon">
-                  <category.icon size={20} />
+                  { serviceCategoryIcon(clinicCategories[category].name)[0] }
                 </div>
                 <div className="specialty-info">
-                  <span className="specialty-name">{category.name}</span>
+                  <span className="specialty-name">{clinicCategories[category].clinicLocaleName}</span>
                   <span className="specialty-count">
-                    {category.id === 'all' 
-                      ? services.length 
-                      : services.filter(s => s.category === category.id).length
+                    {category === 'all'
+                      ? allServices
+                      : clinicCategories[category].services.length
                     } услуг
                   </span>
                 </div>
@@ -344,7 +383,7 @@ const ServicesPage = () => {
                   
                   <div className="service-header">
                     <div className="service-category">
-                      <span>{categories.find(c => c.id === service.category)?.name}</span>
+                      <span>1</span>
                     </div>
                     <div className="service-rating">
                       <Star size={14} />
@@ -403,7 +442,7 @@ const ServicesPage = () => {
               <div className="modal-header-content">
                 <h2>{selectedService.name}</h2>
                 <p className="modal-category">
-                  {categories.find(c => c.id === selectedService.category)?.name}
+                  {Object.keys(clinicCategories).find(c => c === selectedService.category)?.name}
                 </p>
               </div>
               <button 

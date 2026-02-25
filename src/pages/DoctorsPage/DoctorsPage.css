@@ -234,7 +234,7 @@
 
 .specialties-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 16px;
 }
 
@@ -254,6 +254,8 @@
   font-family: 'Inter', sans-serif;
   text-align: left;
   user-select: none;
+  width: 220px;
+  word-break: break-word;
 }
 
 .specialty-card:hover {
