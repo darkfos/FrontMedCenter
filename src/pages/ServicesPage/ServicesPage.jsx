@@ -26,6 +26,7 @@ import './ServicesPage.css';
 
 const ServicesPage = () => {
   const [clinicCategories, setClinicCategories] = useState([]);
+  const [services, setServices] = useState([]);
 
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedService, setSelectedService] = useState(null);
@@ -51,150 +52,11 @@ const ServicesPage = () => {
     let cntService = 0;
 
     Object.keys(clinicCategories).forEach(category => {
-      cntService += clinicCategories[category].services.length
+      cntService += clinicCategories[category].servicesCnt
     });
 
     return cntService;
   }, [clinicCategories]);
-
-  const services = [
-    {
-      id: 1,
-      name: 'Консультация терапевта',
-      category: 'therapy',
-      description: 'Первичный осмотр и диагностика общих заболеваний',
-      price: 'от 2 500 ₽',
-      duration: '30-60 мин',
-      features: [
-        'Первичный осмотр',
-        'Назначение анализов',
-        'Разработка плана лечения',
-        'Консультация по результатам'
-      ],
-      specialists: ['Терапевт', 'Кардиолог', 'Гастроэнтеролог'],
-      popularity: 95,
-      rating: 4.8
-    },
-    {
-      id: 2,
-      name: 'Неврологическое обследование',
-      category: 'neurology',
-      description: 'Диагностика заболеваний нервной системы',
-      price: 'от 4 500 ₽',
-      duration: '60-90 мин',
-      features: [
-        'Осмотр невролога',
-        'Проверка рефлексов',
-        'ЭНМГ исследование',
-        'Консультация по результатам'
-      ],
-      specialists: ['Невролог'],
-      popularity: 88,
-      rating: 4.9
-    },
-    {
-      id: 3,
-      name: 'Консультация ортопеда',
-      category: 'orthopedics',
-      description: 'Диагностика и лечение заболеваний опорно-двигательного аппарата',
-      price: 'от 3 200 ₽',
-      duration: '45 мин',
-      features: [
-        'Осмотр ортопеда',
-        'Рентгенография',
-        'Разработка плана лечения',
-        'Консультация по реабилитации'
-      ],
-      specialists: ['Ортопед', 'Травматолог'],
-      popularity: 92,
-      rating: 4.7
-    },
-    {
-      id: 4,
-      name: 'Диагностика зрения',
-      category: 'ophthalmology',
-      description: 'Комплексное обследование зрения и подбор коррекции',
-      price: 'от 3 800 ₽',
-      duration: '60 мин',
-      features: [
-        'Проверка остроты зрения',
-        'Измерение внутриглазного давления',
-        'Осмотр глазного дна',
-        'Подбор очков и линз'
-      ],
-      specialists: ['Офтальмолог', 'Оптометрист'],
-      popularity: 90,
-      rating: 4.8
-    },
-    {
-      id: 5,
-      name: 'Консультация стоматолога',
-      category: 'dentistry',
-      description: 'Осмотр полости рта и диагностика стоматологических заболеваний',
-      price: 'от 1 500 ₽',
-      duration: '30 мин',
-      features: [
-        'Осмотр стоматолога',
-        'Панорамный снимок',
-        'Профессиональная чистка',
-        'Разработка плана лечения'
-      ],
-      specialists: ['Стоматолог-терапевт', 'Хирург-стоматолог'],
-      popularity: 96,
-      rating: 4.9
-    },
-    {
-      id: 6,
-      name: 'Прием педиатра',
-      category: 'pediatrics',
-      description: 'Осмотр и консультация детского врача',
-      price: 'от 2 800 ₽',
-      duration: '40 мин',
-      features: [
-        'Осмотр ребенка',
-        'Измерение роста и веса',
-        'Консультация по развитию',
-        'Назначение лечения'
-      ],
-      specialists: ['Педиатр', 'Неонатолог'],
-      popularity: 94,
-      rating: 4.8
-    },
-    {
-      id: 7,
-      name: 'Лабораторная диагностика',
-      category: 'diagnostics',
-      description: 'Комплексное лабораторное обследование',
-      price: 'от 5 000 ₽',
-      duration: '15 мин (забор)',
-      features: [
-        'Общий анализ крови',
-        'Биохимический анализ',
-        'Анализ мочи',
-        'Гормональные исследования'
-      ],
-      specialists: ['Лаборант', 'Врач-лаборант'],
-      popularity: 89,
-      rating: 4.7
-    },
-    {
-      id: 8,
-      name: 'УЗИ диагностика',
-      category: 'diagnostics',
-      description: 'Ультразвуковое исследование органов и систем',
-      price: 'от 3 500 ₽',
-      duration: '30-60 мин',
-      features: [
-        'УЗИ брюшной полости',
-        'УЗИ щитовидной железы',
-        'УЗИ суставов',
-        'Консультация по результатам'
-      ],
-      specialists: ['Врач УЗД'],
-      popularity: 91,
-      rating: 4.8
-    }
-  ];
 
   const benefits = [
     {
@@ -219,12 +81,13 @@ const ServicesPage = () => {
     }
   ];
 
-  const filteredServices = services.filter(service => {
+  const filteredServices = useMemo(() => services.filter(service => {
+
     const matchesCategory = selectedCategory === 'all' || service.category === selectedCategory;
-    const matchesSearch = service.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    const matchesSearch = service.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          service.description.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
-  });
+  }), [services]);
 
   const handleServiceSelect = (service) => {
     setSelectedService(service);
@@ -238,6 +101,10 @@ const ServicesPage = () => {
     ClinicAPI.all().then(data => {
       setClinicCategories(data);
     });
+
+    ClinicAPI.filteredServices().then(data => {
+      setServices(data);
+    })
   }, []);
 
   return (
@@ -324,7 +191,7 @@ const ServicesPage = () => {
                   <span className="specialty-count">
                     {category === 'all'
                       ? allServices
-                      : clinicCategories[category].services.length
+                      : clinicCategories[category].servicesCnt
                     } услуг
                   </span>
                 </div>
@@ -374,7 +241,7 @@ const ServicesPage = () => {
                   className={`service-card ${selectedService?.id === service.id ? 'selected' : ''}`}
                   onClick={() => handleServiceSelect(service)}
                 >
-                  {service.popularity > 90 && (
+                  {Number(service.rating) > 4.5 && (
                     <div className="featured-badge">
                       <Sparkles size={12} />
                       <span>Популярно</span>
@@ -383,7 +250,7 @@ const ServicesPage = () => {
                   
                   <div className="service-header">
                     <div className="service-category">
-                      <span>1</span>
+                      <span>{service.clinicType.name}</span>
                     </div>
                     <div className="service-rating">
                       <Star size={14} />
@@ -391,17 +258,17 @@ const ServicesPage = () => {
                     </div>
                   </div>
                   
-                  <h3>{service.name}</h3>
+                  <h3>{service.title}</h3>
                   <p className="service-description">{service.description}</p>
                   
                   <div className="service-features">
                     <div className="feature">
                       <Clock size={16} />
-                      <span>{service.duration}</span>
+                      <span>{service.timeWork}</span>
                     </div>
                     <div className="feature">
                       <Users size={16} />
-                      <span>{service.specialists.length} специалист{service.specialists.length === 1 ? '' : 'а'}</span>
+                      <span>{service.doctors.length} специалист{service.doctors.length === 1 ? '' : 'а'}</span>
                     </div>
                   </div>
                   
@@ -412,7 +279,7 @@ const ServicesPage = () => {
                         style={{ width: `${service.popularity}%` }}
                       />
                     </div>
-                    <span>{service.popularity}% пациентов рекомендуют</span>
+                    <span>{Number(service.recLike > 0 ? service.recLike : 90) / Number(service.recDeslike > 0 ? service.resDeslike : 1)}% пациентов рекомендуют</span>
                   </div>
                   
                   <div className="service-price">
