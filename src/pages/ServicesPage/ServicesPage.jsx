@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 
 import { ClinicAPI} from "../../api/clinic";
+import { debounce } from "../../utils/debounce";
 import './ServicesPage.css';
 
 const ServicesPage = () => {
@@ -31,6 +32,15 @@ const ServicesPage = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedService, setSelectedService] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const fetchServices = debounce(async (...args) => {
+    const data = await ClinicAPI.filteredServices(...args);
+    setServices(data);
+  }, 500);
+  const fetchClinicCategories = debounce(async (...args) => {
+    const data = await ClinicAPI.allClinicTypes(...args);
+    setClinicCategories(data);
+  }, 500);
 
 
   const serviceCategoryIcon = useCallback((iconName) => {
@@ -81,14 +91,6 @@ const ServicesPage = () => {
     }
   ];
 
-  const filteredServices = useMemo(() => services.filter(service => {
-
-    const matchesCategory = selectedCategory === 'all' || service.category === selectedCategory;
-    const matchesSearch = service.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         service.description.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  }), [services]);
-
   const handleServiceSelect = (service) => {
     setSelectedService(service);
   };
@@ -98,14 +100,13 @@ const ServicesPage = () => {
   };
 
   useEffect(() => {
-    ClinicAPI.all().then(data => {
-      setClinicCategories(data);
-    });
-
-    ClinicAPI.filteredServices().then(data => {
-      setServices(data);
-    })
+    fetchClinicCategories();
+    fetchServices();
   }, []);
+
+  useEffect(() => {
+    fetchServices(Number.isNaN(+selectedCategory) ? undefined : +selectedCategory, searchQuery);
+  }, [searchQuery, selectedCategory]);
 
   return (
     <div className="services-page">
@@ -146,7 +147,7 @@ const ServicesPage = () => {
               )}
             </div>
             <div className="search-results">
-              Найдено услуг: <span>{filteredServices.length}</span>
+              Найдено услуг: <span>{services.length}</span>
             </div>
           </div>
         </div>
@@ -229,13 +230,13 @@ const ServicesPage = () => {
             <p>Выберите подходящую услугу для записи</p>
           </div>
 
-          {filteredServices.length === 0 ? (
+          {services.length === 0 ? (
             <div className="no-results">
               <p>Услуги не найдены. Попробуйте изменить поисковый запрос или выбрать другую категорию.</p>
             </div>
           ) : (
             <div className="services-grid">
-              {filteredServices.map((service) => (
+              {services.map((service) => (
                 <div 
                   key={service.id}
                   className={`service-card ${selectedService?.id === service.id ? 'selected' : ''}`}
@@ -307,9 +308,9 @@ const ServicesPage = () => {
           <div className="service-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <div className="modal-header-content">
-                <h2>{selectedService.name}</h2>
+                <h2>{selectedService.title}</h2>
                 <p className="modal-category">
-                  {Object.keys(clinicCategories).find(c => c === selectedService.category)?.name}
+                  {selectedService.clinicType.name}
                 </p>
               </div>
               <button 
@@ -327,7 +328,7 @@ const ServicesPage = () => {
                     <Calendar size={18} />
                     <div>
                       <span className="detail-label">Длительность</span>
-                      <span className="detail-value">{selectedService.duration}</span>
+                      <span className="detail-value">{selectedService.timeWork}</span>
                     </div>
                   </div>
                   <div className="detail-item">
@@ -347,7 +348,7 @@ const ServicesPage = () => {
                 <div className="modal-features">
                   <h3>Что входит в услугу</h3>
                   <ul>
-                    {selectedService.features.map((feature, index) => (
+                    {selectedService.includesIn.map((feature, index) => (
                       <li key={index}>
                         <Check size={16} />
                         <span>{feature}</span>
@@ -374,7 +375,7 @@ const ServicesPage = () => {
                     <span className="rating-label">рейтинг</span>
                   </div>
                   <div className="rating-popularity">
-                    <span>{selectedService.popularity}%</span>
+                    <span>{Number(selectedCategory.recLike > 0 ? selectedCategory.recLike : 90) / Number(selectedCategory.recDeslike > 0 ? selectedCategory.resDeslike : 1)}%</span>
                     <span className="popularity-label">пациентов рекомендуют</span>
                   </div>
                 </div>

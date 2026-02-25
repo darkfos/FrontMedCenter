@@ -5,7 +5,7 @@ export class ClinicAPI {
     static PREFIX = 'clinic';
     static PREFIX_SERVICE = 'services';
 
-    static async all() {
+    static async allClinicTypes() {
         const req = await api.get(`/${ClinicAPI.PREFIX_SERVICE}`);
         return await req.data;
     }
