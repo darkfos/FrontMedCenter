@@ -1,0 +1,20 @@
+import {api} from "../config";
+
+export class DoctorAPI {
+
+    static PREFIX = 'doctor'
+
+    static async getFilteredDoctors(username, specialization, formatWork, pageSize = 100 ) {
+
+        const req = await api.get(`/${DoctorAPI.PREFIX}/list`, {
+            params: {
+                username,
+                specialization,
+                formatWork,
+                pageSize
+            }
+        });
+
+        return await req.data?.list ?? [];
+    }
+}

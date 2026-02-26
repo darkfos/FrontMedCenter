@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  User, 
-  Star, 
-  Award, 
+import {
+  User,
+  Star,
+  Award,
   Calendar,
   Clock,
   Heart,
@@ -11,165 +11,65 @@ import {
   Bone,
   Eye,
   Baby,
-  Cross,
   Search,
   X,
   Phone,
   Check,
   Sparkles,
   Shield,
-  ChevronRight
+  ChevronRight, Stethoscope, Scissors, Pill
 } from 'lucide-react';
 import './DoctorsPage.css';
 
+import { ClinicAPI } from "../../api/clinic";
+import { debounce } from "../../utils/debounce";
+import {DoctorAPI} from "../../api/doctor";
+
 const DoctorsPage = () => {
   const [selectedSpecialty, setSelectedSpecialty] = useState('all');
-  const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedDoctor, setSelectedDoctor] = useState(null);
 
-  const specialties = [
-    { id: 'all', name: 'Все врачи', icon: User, color: '#10b981', count: 24 },
-    { id: 'therapy', name: 'Терапия', icon: Heart, color: '#ef4444', count: 8 },
-    { id: 'neurology', name: 'Неврология', icon: Brain, color: '#8b5cf6', count: 5 },
-    { id: 'orthopedics', name: 'Ортопедия', icon: Bone, color: '#f59e0b', count: 4 },
-    { id: 'ophthalmology', name: 'Офтальмология', icon: Eye, color: '#0ea5e9', count: 3 },
-    { id: 'pediatrics', name: 'Педиатрия', icon: Baby, color: '#ec4899', count: 4 },
-    { id: 'surgery', name: 'Хирургия', icon: Cross, color: '#dc2626', count: 3 }
-  ];
+  const [clinicCategories, setClinicCategories] = useState([]);
+  const [filteredDoctors, setFilteredDoctors] = useState([]);
 
-  const doctors = [
-    {
-      id: 1,
-      name: 'Дмитрий Иванов',
-      specialty: 'therapy',
-      position: 'Главный терапевт',
-      experience: 15,
-      rating: 4.9,
-      reviews: 127,
-      description: 'Специалист по внутренним болезням, кардиологии и гастроэнтерологии',
-      education: 'Московский государственный медицинский университет',
-      services: ['Консультация', 'Диагностика', 'Лечение хронических заболеваний'],
-      schedule: 'Пн-Пт: 9:00-18:00',
-      price: '3 500 ₽',
-      imageColor: '#10b981',
-      featured: true,
-      nextAvailable: 'Сегодня, 14:30'
-    },
-    {
-      id: 2,
-      name: 'Анна Петрова',
-      specialty: 'neurology',
-      position: 'Невролог высшей категории',
-      experience: 12,
-      rating: 4.8,
-      reviews: 89,
-      description: 'Эксперт по заболеваниям нервной системы и реабилитации',
-      education: 'Санкт-Петербургский медицинский университет',
-      services: ['Неврологическое обследование', 'ЭНМГ', 'Реабилитация после инсульта'],
-      schedule: 'Вт-Сб: 10:00-19:00',
-      price: '4 200 ₽',
-      imageColor: '#8b5cf6',
-      featured: true,
-      nextAvailable: 'Завтра, 10:00'
-    },
-    {
-      id: 3,
-      name: 'Сергей Кузнецов',
-      specialty: 'orthopedics',
-      position: 'Хирург-ортопед',
-      experience: 18,
-      rating: 4.9,
-      reviews: 156,
-      description: 'Специалист по лечению заболеваний опорно-двигательного аппарата',
-      education: 'Российский национальный исследовательский медицинский университет',
-      services: ['Консультация', 'Артроскопия', 'Эндопротезирование суставов'],
-      schedule: 'Пн-Чт: 8:00-17:00',
-      price: '5 000 ₽',
-      imageColor: '#f59e0b',
-      nextAvailable: 'Сегодня, 16:45'
-    },
-    {
-      id: 4,
-      name: 'Елена Сидорова',
-      specialty: 'ophthalmology',
-      position: 'Офтальмолог-хирург',
-      experience: 14,
-      rating: 4.7,
-      reviews: 94,
-      description: 'Специалист по лазерной коррекции зрения и лечению заболеваний глаз',
-      education: 'Московская медицинская академия',
-      services: ['Диагностика зрения', 'Лазерная коррекция', 'Лечение катаракты'],
-      schedule: 'Вт-Пт: 9:00-18:00',
-      price: '4 800 ₽',
-      imageColor: '#0ea5e9',
-      nextAvailable: 'Завтра, 11:15'
-    },
-    {
-      id: 5,
-      name: 'Мария Козлова',
-      specialty: 'pediatrics',
-      position: 'Детский врач',
-      experience: 10,
-      rating: 4.9,
-      reviews: 203,
-      description: 'Специалист по детским заболеваниям и профилактической медицине',
-      education: 'Российский университет дружбы народов',
-      services: ['Прием детей', 'Вакцинация', 'Профилактические осмотры'],
-      schedule: 'Пн-Пт: 8:00-16:00',
-      price: '3 200 ₽',
-      imageColor: '#ec4899',
-      nextAvailable: 'Сегодня, 15:30'
-    },
-    {
-      id: 6,
-      name: 'Алексей Волков',
-      specialty: 'surgery',
-      position: 'Хирург общей практики',
-      experience: 20,
-      rating: 4.8,
-      reviews: 178,
-      description: 'Опытный хирург с многолетним стажем работы',
-      education: 'Саратовский государственный медицинский университет',
-      services: ['Плановые операции', 'Экстренная хирургия', 'Послеоперационное ведение'],
-      schedule: 'Пн-Ср-Пт: 8:00-17:00',
-      price: '6 500 ₽',
-      imageColor: '#dc2626',
-      featured: true,
-      nextAvailable: 'Пн, 9:00'
-    },
-    {
-      id: 7,
-      name: 'Ольга Николаева',
-      specialty: 'therapy',
-      position: 'Кардиолог',
-      experience: 11,
-      rating: 4.7,
-      reviews: 76,
-      description: 'Специалист по заболеваниям сердечно-сосудистой системы',
-      education: 'Кемеровская государственная медицинская академия',
-      services: ['ЭКГ', 'Холтер-мониторинг', 'Лечение гипертонии'],
-      schedule: 'Вт-Чт-Сб: 10:00-19:00',
-      price: '4 000 ₽',
-      imageColor: '#ef4444',
-      nextAvailable: 'Ср, 14:00'
-    },
-    {
-      id: 8,
-      name: 'Игорь Смирнов',
-      specialty: 'neurology',
-      position: 'Детский невролог',
-      experience: 9,
-      rating: 4.8,
-      reviews: 112,
-      description: 'Специалист по неврологическим заболеваниям у детей',
-      education: 'Казанский государственный медицинский университет',
-      services: ['Прием детей', 'Диагностика СДВГ', 'Реабилитация ДЦП'],
-      schedule: 'Пн-Пт: 9:00-17:00',
-      price: '3 800 ₽',
-      imageColor: '#8b5cf6',
-      nextAvailable: 'Чт, 13:45'
-    }
-  ];
+  const fetchClinicCategories = useMemo(() => {
+    return debounce(async () => {
+      const data = await ClinicAPI.allClinicWithDoctors();
+      setClinicCategories(data);
+    }, 500);
+  }, [debounce]);
+
+  const allDoctors = useMemo(() => {
+    let cntDoctors = 0;
+
+    Object.keys(clinicCategories).forEach((clinic) => {
+      cntDoctors += clinicCategories[clinic].doctorCnt;
+    })
+    return cntDoctors;
+  }, [clinicCategories]);
+
+  const fetchFilteredDoctors = useMemo(() => {
+    return debounce(async (...args) => {
+      const data = await DoctorAPI.getFilteredDoctors(...args);
+      setFilteredDoctors(data);
+    })
+  }, [debounce]);
+
+  const serviceCategoryIcon = useCallback((iconName) => {
+    const icons = {
+      'all': [<Stethoscope size={20} />, '#10b981'],
+      'therapy': [<Heart size={20} />, '#ef4444'],
+      'neurology': [<Brain size={20} />, '#8b5cf6'],
+      'orthopedics': [<Bone size={20} />, '#f59e0b'],
+      'ophthalmology': [<Eye size={20} />, '#0ea5e9'],
+      'dentistry': [<Scissors size={20} />, '#06b6d4'],
+      'pediatrics': [<Baby size={20} />, '#ec4899'],
+      'diagnostics': [<Pill size={20} />, '#84cc16']
+    };
+
+    return icons[iconName];
+  }, [clinicCategories]);
 
   const stats = [
     { icon: Award, value: '15+', label: 'Лет средний опыт' },
@@ -177,14 +77,6 @@ const DoctorsPage = () => {
     { icon: User, value: '95%', label: 'Пациентов рекомендуют' },
     { icon: Shield, value: '24', label: 'Врача в команде' }
   ];
-
-  const filteredDoctors = doctors.filter(doctor => {
-    const matchesSpecialty = selectedSpecialty === 'all' || doctor.specialty === selectedSpecialty;
-    const matchesSearch = doctor.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         doctor.position.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         doctor.description.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesSpecialty && matchesSearch;
-  });
 
   const handleBookAppointment = (doctor, e) => {
     e.preventDefault();
@@ -199,6 +91,15 @@ const DoctorsPage = () => {
     }
     // Иначе React Router сам обработает переход по <Link>
   };
+
+  useEffect(() => {
+    fetchClinicCategories();
+    fetchFilteredDoctors();
+  }, []);
+
+  useEffect(() => {
+    fetchFilteredDoctors(searchQuery, Number.isNaN(+selectedSpecialty) ? undefined : +selectedSpecialty);
+  }, [searchQuery, selectedSpecialty]);
 
   return (
     <div className="doctors-page">
@@ -274,21 +175,36 @@ const DoctorsPage = () => {
           </div>
           
           <div className="specialties-grid">
-            {specialties.map((specialty) => (
+            <button
+                className={`specialty-card ${selectedSpecialty === 'all' ? 'selected' : ''}`}
+                onClick={() => setSelectedSpecialty('all')}
+                style={{ '--specialty-color': serviceCategoryIcon('all')[1] }}
+            >
+              <div className="specialty-icon-wrapper">
+                <div className="specialty-icon">
+                  {serviceCategoryIcon('all')[0]}
+                </div>
+              </div>
+              <div className="specialty-info">
+                <span className="specialty-name">Все врачи</span>
+                <span className="specialty-count">{allDoctors} врачей</span>
+              </div>
+            </button>
+            {Object.keys(clinicCategories).map((category) => (
               <button
-                key={specialty.id}
-                className={`specialty-card ${selectedSpecialty === specialty.id ? 'selected' : ''}`}
-                onClick={() => setSelectedSpecialty(specialty.id)}
-                style={{ '--specialty-color': specialty.color }}
+                key={category}
+                className={`specialty-card ${selectedSpecialty === category ? 'selected' : ''}`}
+                onClick={() => setSelectedSpecialty(category)}
+                style={{ '--specialty-color': serviceCategoryIcon(clinicCategories[category].name)[1] }}
               >
                 <div className="specialty-icon-wrapper">
                   <div className="specialty-icon">
-                    <specialty.icon size={20} />
+                    {serviceCategoryIcon(clinicCategories[category].name)[0]}
                   </div>
                 </div>
                 <div className="specialty-info">
-                  <span className="specialty-name">{specialty.name}</span>
-                  <span className="specialty-count">{specialty.count} врачей</span>
+                  <span className="specialty-name">{clinicCategories[category].clinicLocaleName}</span>
+                  <span className="specialty-count">{clinicCategories[category].doctorCnt} врачей</span>
                 </div>
               </button>
             ))}
@@ -328,9 +244,9 @@ const DoctorsPage = () => {
                   onClick={(e) => handleDoctorCardClick(doctor.id, e)}
                 >
                   <div 
-                    className={`doctor-card ${doctor.featured ? 'featured' : ''}`}
+                    className={`doctor-card ${doctor.competencies ? 'featured' : ''}`}
                   >
-                    {doctor.featured && (
+                    {doctor.competencies && (
                       <div className="featured-badge">
                         <Sparkles size={12} />
                         <span>Рекомендуем</span>
@@ -342,18 +258,18 @@ const DoctorsPage = () => {
                         <User size={32} color="white" />
                       </div>
                       <div className="doctor-header-info">
-                        <h3 className="doctor-name">{doctor.name}</h3>
+                        <h3 className="doctor-name">{doctor.fullName}</h3>
                         <p className="doctor-position">{doctor.position}</p>
                         <div className="doctor-rating">
                           <Star size={14} />
                           <span className="rating-value">{doctor.rating}</span>
-                          <span className="rating-reviews">({doctor.reviews} отзывов)</span>
+                          <span className="rating-reviews">({doctor.doctorReviews.length} отзывов)</span>
                         </div>
                       </div>
                     </div>
                     
                     <div className="doctor-specialty-badge">
-                      {specialties.find(s => s.id === doctor.specialty)?.name}
+                      {doctor.clinicType.name}
                     </div>
                     
                     <p className="doctor-description">{doctor.description}</p>
@@ -365,12 +281,12 @@ const DoctorsPage = () => {
                       </div>
                       <div className="doctor-detail">
                         <Calendar size={16} />
-                        <span>{doctor.nextAvailable}</span>
+                        <span>{doctor.dayWork.days.join(', ')}, {doctor.scheduleWork}</span>
                       </div>
                     </div>
                     
                     <div className="doctor-services">
-                      {doctor.services.slice(0, 3).map((service, index) => (
+                      {doctor.competencies.slice(0, 3).map((service, index) => (
                         <div key={index} className="service-item">
                           <Check size={12} />
                           <span>{service}</span>
@@ -381,7 +297,7 @@ const DoctorsPage = () => {
                     <div className="doctor-card-footer">
                       <div className="doctor-price">
                         <span className="price-label">Консультация</span>
-                        <span className="price-value">{doctor.price}</span>
+                        <span className="price-value">{doctor.consultPrice} ₽</span>
                       </div>
                       <button 
                         className="book-consultation-btn"

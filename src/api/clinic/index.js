@@ -10,6 +10,11 @@ export class ClinicAPI {
         return await req.data;
     }
 
+    static async allClinicWithDoctors() {
+        const req = await api.get(`/${ClinicAPI.PREFIX}/doctors`);
+        return await req.data;
+    }
+
     static async filteredServices(clinicType, serviceName) {
         const req = await api.get(`/${ClinicAPI.PREFIX_SERVICE}/filter`, {
             params: {
