@@ -33,14 +33,19 @@ const ServicesPage = () => {
   const [selectedService, setSelectedService] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const fetchServices = debounce(async (...args) => {
-    const data = await ClinicAPI.filteredServices(...args);
-    setServices(data);
-  }, 500);
-  const fetchClinicCategories = debounce(async (...args) => {
-    const data = await ClinicAPI.allClinicTypes(...args);
-    setClinicCategories(data);
-  }, 500);
+  const fetchServices = useMemo(() => {
+      return debounce(async (...args) => {
+        const data = await ClinicAPI.filteredServices(...args);
+        setServices(data);
+      }, 800);
+  }, [debounce]);
+
+  const fetchClinicCategories = useMemo(() => {
+      return debounce(async (...args) => {
+        const data = await ClinicAPI.allClinicTypes(...args);
+        setClinicCategories(data);
+      }, 500);
+  }, [debounce]);
 
 
   const serviceCategoryIcon = useCallback((iconName) => {
