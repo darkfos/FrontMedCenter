@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Heart,
@@ -8,51 +8,23 @@ import {
   Target,
   Clock,
   Star,
-  ChevronRight,
   Stethoscope,
   Calendar,
   Phone,
   Mail,
   ArrowRight,
   CheckCircle,
-  TrendingUp,
   BookOpen,
   GraduationCap,
   Briefcase,
   HeartHandshake
 } from 'lucide-react';
 import './AboutPage.css';
+import {DoctorAPI} from "../../api/doctor";
 
 const AboutPage = () => {
-  const team = [
-    {
-      id: 1,
-      name: 'Дмитрий Иванов',
-      position: 'Главный врач',
-      specialty: 'Терапевт',
-      experience: 25,
-      image: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSQiNYk6cBd6bMoRqyly9gQaMDGUlNeLl4tag&s',
-      description: 'Врач с 25-летним стажем, специалист по традиционной диагностике'
-    },
-    {
-      id: 2,
-      name: 'Анна Петрова',
-      position: 'Заведующая отделением',
-      specialty: 'Кардиолог',
-      experience: 20,
-      image: 'https://www.cardio.ru/wp-content/uploads/zvezdochetovana.webp',
-      description: 'Ведущий кардиолог, эксперт по профилактике сердечно-сосудистых заболеваний'
-    },
-    {
-      id: 3,
-      name: 'Сергей Кузнецов',
-      position: 'Главный хирург',
-      specialty: 'Хирург-ортопед',
-      experience: 30,
-      image: 'https://asclinic.ru/userfls/cck/medium/48_lebedev-andrey-vladimirovi.jpg',
-      description: 'Опытный хирург с классическим подходом к лечению'
-    }
-  ];
+
+  const [doctors, setDoctors] = useState([]);
 
   const values = [
     {
@@ -102,6 +74,12 @@ const AboutPage = () => {
     { icon: Clock, value: '28', label: 'Лет на рынке' },
     { icon: Star, value: '99%', label: 'Довольных пациентов' }
   ];
+
+  useEffect(() => {
+    DoctorAPI.getOldestDoctors().then(data => {
+      setDoctors(data);
+    })
+  }, []);
 
   return (
     <div className="about-page-wrapper">
@@ -222,10 +200,10 @@ const AboutPage = () => {
           </div>
           
           <div className="about-team-grid">
-            {team.map((member) => (
+            {doctors.map((member) => (
               <div key={member.id} className="about-team-card">
                 <div className="about-member-image">
-                  <img src={member.image} alt={member.name} />
+                  <img src={member.avatar} alt={member.fullName} />
                   <div className="about-member-overlay">
                     <div className="about-experience-badge">
                       <Calendar size={12} />
@@ -234,9 +212,9 @@ const AboutPage = () => {
                   </div>
                 </div>
                 <div className="about-member-info">
-                  <h3 className="about-member-name">{member.name}</h3>
+                  <h3 className="about-member-name">{member.fullName}</h3>
                   <div className="about-member-position">{member.position}</div>
-                  <div className="about-member-specialty">{member.specialty}</div>
+                  <div className="about-member-specialty">{member.clinicType.name}</div>
                   <p className="about-member-description">{member.description}</p>
                   
                   <div className="about-member-contact">
@@ -377,7 +355,7 @@ const AboutPage = () => {
               </p>
               
               <div className="about-cta-buttons">
-                <Link to="/contact" className="about-cta-btn about-cta-primary">
+                <Link to="/contacts" className="about-cta-btn about-cta-primary">
                   <Phone size={18} />
                   <span>Записаться на прием</span>
                 </Link>

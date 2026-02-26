@@ -17,4 +17,9 @@ export class DoctorAPI {
 
         return await req.data?.list ?? [];
     }
+
+    static async getOldestDoctors() {
+        const req = await api.get(`/${DoctorAPI.PREFIX}/oldest`, {});
+        return req.data;
+    }
 }
