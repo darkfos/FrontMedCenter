@@ -203,7 +203,7 @@ const AboutPage = () => {
             {doctors.map((member) => (
               <div key={member.id} className="about-team-card">
                 <div className="about-member-image">
-                  <img src={member.avatar} alt={member.fullName} />
+                  <img src={'/static/images/'.concat(member.avatar)} alt={member.fullName} />
                   <div className="about-member-overlay">
                     <div className="about-experience-badge">
                       <Calendar size={12} />
