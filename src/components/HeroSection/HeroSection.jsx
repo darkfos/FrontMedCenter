@@ -13,7 +13,7 @@ const HeroSection = () => {
   const handleSubmitConsultForm = async (data) => {
       const result = await ConsultAPI.createConsult(data.username, data.phone, data.complaints);
 
-      if (result) {
+      if (Array.isArray(result)) {
         return result.forEach(errorField => (
             setError(errorField, { message: 'Неверно заполненное поле' })
         ))

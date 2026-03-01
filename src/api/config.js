@@ -30,11 +30,13 @@ api.interceptors.response.use(
             window.location.href = '/auth';
             return Promise.reject(error);
         }
+
+        const formErrors = [];
         if (error.response?.status === 400 && Array.isArray(error.response?.data?.detail)) {
-            error.response.data.detail = error.response.data.detail.map((d) =>
+            formErrors.push(...error.response.data.detail.map((d) =>
                 typeof d === 'object' && d?.field != null ? d.field : d
-            );
+            ))
         }
-        return Promise.reject(error);
+        return formErrors;
     }
 );

@@ -12,8 +12,8 @@ export class ConsultAPI {
             complaints,
         });
 
-        if (req.status === 400) {
-            return req.data;
+        if (req) {
+            return req;
         }
     }
 }
