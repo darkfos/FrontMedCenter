@@ -252,7 +252,17 @@
 
 .profile-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.75rem;
+}
+
+.profile-save-error {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: #fed7d7;
+  color: #c53030;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
 }
 
 .profile-action-button {
@@ -434,6 +444,224 @@
 
 .profile-security-logout:hover {
   background: rgba(239, 68, 68, 0.1);
+}
+
+/* Модальное окно смены пароля */
+.password-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+.password-modal-overlay.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.password-modal {
+  background: white;
+  border-radius: 1.25rem;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  overflow: hidden;
+}
+
+.password-modal-header {
+  position: relative;
+  padding: 1.5rem 1.5rem 0.75rem;
+  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+  border-bottom: 1px solid #d1fae5;
+}
+
+.password-modal-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.password-modal-icon {
+  color: #059669;
+  flex-shrink: 0;
+}
+
+.password-modal-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.password-modal-subtitle {
+  margin: 0 0 0 2rem;
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.password-modal-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.password-modal-close:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+.password-modal-form {
+  padding: 1.5rem 1.5rem 1.75rem;
+}
+
+.password-modal-error {
+  padding: 0.75rem 1rem;
+  background: #fed7d7;
+  color: #c53030;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+.password-modal-success {
+  padding: 0.75rem 1rem;
+  background: #c6f6d5;
+  color: #276749;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+.password-modal-field {
+  margin-bottom: 1.25rem;
+}
+
+.password-modal-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #334155;
+  margin-bottom: 0.5rem;
+}
+
+.password-modal-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 1rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.password-modal-input-wrap:focus-within {
+  border-color: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+}
+
+.password-modal-input-icon {
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.password-modal-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 0.75rem 0;
+  font-size: 0.9375rem;
+  color: #1e293b;
+  outline: none;
+}
+
+.password-modal-input::placeholder {
+  color: #94a3b8;
+}
+
+.password-modal-toggle {
+  background: none;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.375rem;
+  transition: color 0.2s ease;
+}
+
+.password-modal-toggle:hover {
+  color: #10b981;
+}
+
+.password-modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.password-modal-btn {
+  padding: 0.625rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.password-modal-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.password-modal-btn-cancel {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+}
+
+.password-modal-btn-cancel:hover:not(:disabled) {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.password-modal-btn-submit {
+  background: #10b981;
+  border: none;
+  color: white;
+}
+
+.password-modal-btn-submit:hover:not(:disabled) {
+  background: #059669;
+  transform: translateY(-1px);
 }
 
 .profile-content-section {

@@ -552,6 +552,12 @@
   cursor: default;
 }
 
+.auth-success-message {
+  background: #c6f6d5;
+  color: #276749;
+  border-color: #68d391;
+}
+
 @media (hover: hover) {
   .auth-mode-button:hover,
   .auth-password-toggle:hover,

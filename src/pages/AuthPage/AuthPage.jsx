@@ -11,73 +11,15 @@ import {
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { AuthAPI } from '../../api/auth';
 import './AuthPage.css';
 
-// Моковые данные пользователей
-const mockUsers = {
-  'patient@medicare.ru': { 
-    password: 'patient123', 
-    type: 'patient',
-    firstName: 'Иван',
-    lastName: 'Петров',
-    middleName: 'Сергеевич',
-    phone: '+7 (999) 123-45-67',
-    birthDate: '1990-05-15',
-    insuranceNumber: '1234567890123456',
-    appointments: [
-      { id: 1, date: '2025-01-20', time: '10:00', doctor: 'Др. Смирнова А.И.', specialty: 'Терапевт', status: 'confirmed' },
-      { id: 2, date: '2025-01-25', time: '14:30', doctor: 'Др. Иванов П.С.', specialty: 'Кардиолог', status: 'pending' }
-    ],
-    medicalHistory: [
-      { id: 1, date: '2024-12-10', diagnosis: 'ОРВИ', doctor: 'Др. Смирнова А.И.' },
-      { id: 2, date: '2024-11-05', diagnosis: 'Гипертония', doctor: 'Др. Иванов П.С.' }
-    ]
-  },
-  'doctor@medicare.ru': { 
-    password: 'doctor123', 
-    type: 'doctor',
-    firstName: 'Анна',
-    lastName: 'Смирнова',
-    middleName: 'Ивановна',
-    phone: '+7 (495) 765-43-21',
-    specialty: 'Терапевт',
-    license: 'ЛИЦ-2025-12345',
-    experience: 8,
-    schedule: 'Пн-Пт: 9:00-18:00',
-    patientsToday: 12,
-    upcomingAppointments: [
-      { id: 1, patient: 'Иван Петров', time: '10:00', complaint: 'Повышенное давление' },
-      { id: 2, patient: 'Мария Сидорова', time: '11:00', complaint: 'Кашель' }
-    ]
-  },
-  'nurse@medicare.ru': { 
-    password: 'nurse123', 
-    type: 'nurse',
-    firstName: 'Ольга',
-    lastName: 'Кузнецова',
-    middleName: 'Петровна',
-    phone: '+7 (495) 654-32-10',
-    department: 'Процедурный кабинет',
-    license: 'МС-2025-67890',
-    experience: 5,
-    schedule: 'Пн-Сб: 8:00-16:00',
-    proceduresToday: 8
-  },
-  'admin@medicare.ru': { 
-    password: 'admin123', 
-    type: 'admin',
-    firstName: 'Александр',
-    lastName: 'Васильев',
-    middleName: 'Михайлович',
-    phone: '+7 (495) 987-65-43',
-    role: 'Администратор системы',
-    permissions: ['users', 'doctors', 'appointments', 'settings'],
-    systemStats: {
-      totalUsers: 1245,
-      activeDoctors: 24,
-      appointmentsToday: 56
-    }
-  }
+const getErrorMessage = (error) => {
+  const data = error?.response?.data;
+  if (typeof data?.message === 'string') return data.message;
+  if (Array.isArray(data)) return data.join(', ');
+  if (data?.detail) return typeof data.detail === 'string' ? data.detail : 'Ошибка валидации';
+  return error?.message || 'Произошла ошибка. Попробуйте позже.';
 };
 
 const AuthPage = () => {
@@ -87,82 +29,79 @@ const AuthPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  // Если пользователь уже авторизован, перенаправляем в профиль
   React.useEffect(() => {
     if (currentUser) {
       navigate('/profile');
     }
   }, [currentUser, navigate]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
+    setSubmitting(true);
 
-    if (!isLogin) {
-      // Регистрация нового пациента
+    try {
+      if (!isLogin) {
+        const formData = new FormData(e.target);
+        const firstName = (formData.get('firstName') || '').trim();
+        const lastName = (formData.get('lastName') || '').trim();
+        const fullName = [firstName, lastName].filter(Boolean).join(' ');
+        const email = (formData.get('email') || '').trim();
+        const phone = (formData.get('phone') || '').trim();
+        const password = formData.get('password') || '';
+        const confirmPassword = formData.get('confirmPassword') || '';
+
+        if (password !== confirmPassword) {
+          setErrorMessage('Пароли не совпадают');
+          return;
+        }
+        if (!fullName) {
+          setErrorMessage('Введите имя и фамилию');
+          return;
+        }
+
+        await AuthAPI.register({
+          email,
+          password,
+          fullName,
+          phone: phone || undefined,
+        });
+        setErrorMessage('');
+        setIsLogin(true);
+        setErrorMessage('Регистрация прошла успешно. Войдите в аккаунт.');
+        return;
+      }
+
       const formData = new FormData(e.target);
-      const firstName = formData.get('firstName') || '';
-      const lastName = formData.get('lastName') || '';
-      const email = formData.get('email') || '';
-      const phone = formData.get('phone') || '';
+      const email = (formData.get('email') || '').trim();
       const password = formData.get('password') || '';
-      const confirmPassword = formData.get('confirmPassword') || '';
-      
-      // Проверка паролей
-      if (password !== confirmPassword) {
-        setErrorMessage('Пароли не совпадают');
+
+      if (!email || !password) {
+        setErrorMessage('Введите email и пароль');
         return;
       }
-      
-      // Проверка email
-      if (mockUsers[email]) {
-        setErrorMessage('Пользователь с таким email уже существует');
+
+      const tokens = await AuthAPI.login({ email, password });
+      const token = tokens?.token ?? tokens?.accessToken;
+      const refresh = tokens?.refresh ?? tokens?.refreshToken;
+      if (!token) {
+        setErrorMessage('Не удалось аутентифицировать пользователя');
         return;
       }
-      
-      // Создание нового пользователя
-      const newUser = {
-        type: 'patient',
-        email,
-        firstName,
-        lastName,
-        phone,
-        appointments: [],
-        medicalHistory: [],
-        insuranceNumber: 'НОВЫЙ-' + Date.now().toString().slice(-12)
-      };
-      
-      login(newUser);
+      localStorage.setItem('token', token);
+      if (refresh) localStorage.setItem('refresh', refresh);
+
+      const user = await AuthAPI.getUserInfo();
+      login({ token, refresh }, user);
+      setErrorMessage('');
       navigate('/profile');
-      return;
+    } catch (err) {
+      setErrorMessage(getErrorMessage(err));
+    } finally {
+      setSubmitting(false);
     }
-    
-    // Вход существующего пользователя
-    const formData = new FormData(e.target);
-    const email = formData.get('email') || '';
-    const password = formData.get('password') || '';
-    
-    if (!email || !password) {
-      setErrorMessage('Введите email и пароль');
-      return;
-    }
-    
-    const user = mockUsers[email];
-    
-    if (!user) {
-      setErrorMessage('Пользователь с таким email не найден');
-      return;
-    }
-    
-    if (user.password !== password) {
-      setErrorMessage('Неверный пароль');
-      return;
-    }
-    
-    const { password: _, ...userData } = user;
-    login(userData);
-    navigate('/profile');
   };
 
   return (
@@ -210,29 +149,10 @@ const AuthPage = () => {
               </button>
             </div>
 
-            {/* Сообщение об ошибке */}
+            {/* Сообщение об ошибке или успехе */}
             {errorMessage && (
-              <div className="auth-error-message">
+              <div className={`auth-error-message ${errorMessage.includes('успешно') ? 'auth-success-message' : ''}`}>
                 {errorMessage}
-              </div>
-            )}
-
-            {/* Тестовые данные */}
-            {isLogin && (
-              <div className="auth-test-users">
-                <h4>Тестовые пользователи:</h4>
-                <div className="auth-test-user">
-                  <strong>Пациент:</strong> patient@medicare.ru / patient123
-                </div>
-                <div className="auth-test-user">
-                  <strong>Врач:</strong> doctor@medicare.ru / doctor123
-                </div>
-                <div className="auth-test-user">
-                  <strong>Медсестра:</strong> nurse@medicare.ru / nurse123
-                </div>
-                <div className="auth-test-user">
-                  <strong>Админ:</strong> admin@medicare.ru / admin123
-                </div>
               </div>
             )}
 
@@ -422,8 +342,8 @@ const AuthPage = () => {
 
               <div className="auth-divider"></div>
 
-              <button type="submit" className="auth-submit-button">
-                {isLogin ? 'Войти в аккаунт' : 'Создать аккаунт и начать путь к здоровью'}
+              <button type="submit" className="auth-submit-button" disabled={submitting}>
+                {submitting ? 'Отправка...' : (isLogin ? 'Войти в аккаунт' : 'Создать аккаунт и начать путь к здоровью')}
               </button>
 
               <div className="auth-switch-mode">

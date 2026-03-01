@@ -21,6 +21,7 @@ import {
   FileText,
   ClipboardList,
   Eye,
+  EyeOff,
   Pill,
   AlertCircle,
   CheckCircle,
@@ -50,11 +51,12 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { AuthAPI } from '../../api/auth';
 import './ProfilePage.css';
 
 const ProfilePage = () => {
   const navigate = useNavigate();
-  const { currentUser, logout, updateUser } = useAuth();
+  const { currentUser, logout, updateUser, refreshUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [userData, setUserData] = useState(() => ({ ...currentUser }));
   const [searchTerm, setSearchTerm] = useState('');
@@ -75,6 +77,16 @@ const ProfilePage = () => {
     lab: '',
     notes: ''
   });
+  const [profileSaveError, setProfileSaveError] = useState('');
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Mock данные для пациентов врача
   const [patients, setPatients] = useState([
@@ -291,6 +303,11 @@ const ProfilePage = () => {
     { id: 4, action: 'Изменены настройки безопасности', user: 'Админ', time: 'Вчера 16:20' }
   ]);
 
+  // При каждом переходе на страницу профиля — запрос /info; при 401 interceptor сбросит storage и редирект на /auth
+  useEffect(() => {
+    refreshUser().catch(() => {});
+  }, []);
+
   useEffect(() => {
     if (currentUser) {
       setUserData({ ...currentUser });
@@ -307,9 +324,26 @@ const ProfilePage = () => {
     navigate('/');
   };
 
-  const handleSave = () => {
-    updateUser(userData);
-    setIsEditing(false);
+  const handleSave = async () => {
+    setProfileSaveError('');
+    setProfileSaving(true);
+    const fullName = [userData.firstName, userData.lastName].filter(Boolean).join(' ').trim();
+    try {
+      await AuthAPI.updateProfile({
+        fullName: fullName || undefined,
+        email: userData.email || undefined,
+        phone: userData.phone || undefined,
+        policyNumber: userData.policyNumber ?? currentUser.policyNumber ?? undefined,
+      });
+      const fresh = await refreshUser();
+      setUserData((prev) => ({ ...prev, ...fresh }));
+      setIsEditing(false);
+    } catch (err) {
+      const msg = err?.response?.data?.message ?? err?.response?.data?.detail ?? err?.message ?? 'Не удалось сохранить данные';
+      setProfileSaveError(typeof msg === 'string' ? msg : 'Ошибка сохранения профиля');
+    } finally {
+      setProfileSaving(false);
+    }
   };
 
   const handleInputChange = (field, value) => {
@@ -322,6 +356,53 @@ const ProfilePage = () => {
   const handleCancel = () => {
     setUserData({ ...currentUser });
     setIsEditing(false);
+  };
+
+  const openPasswordModal = () => {
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordError('');
+    setPasswordSuccess('');
+    setShowNewPassword(false);
+    setShowConfirmPassword(false);
+    setIsPasswordModalOpen(true);
+  };
+
+  const closePasswordModal = () => {
+    setIsPasswordModalOpen(false);
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordError('');
+    setPasswordSuccess('');
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setPasswordError('');
+    setPasswordSuccess('');
+    const pwd = newPassword.trim();
+    const conf = confirmPassword.trim();
+    if (pwd.length < 6) {
+      setPasswordError('Пароль должен быть не менее 6 символов');
+      return;
+    }
+    if (pwd !== conf) {
+      setPasswordError('Пароли не совпадают');
+      return;
+    }
+    setPasswordSaving(true);
+    try {
+      await AuthAPI.changePassword(pwd);
+      setPasswordSuccess('Пароль успешно изменён');
+      setNewPassword('');
+      setConfirmPassword('');
+      setTimeout(() => closePasswordModal(), 1500);
+    } catch (err) {
+      const msg = err?.response?.data?.message ?? err?.response?.data?.detail ?? err?.message ?? 'Не удалось изменить пароль';
+      setPasswordError(typeof msg === 'string' ? msg : 'Ошибка смены пароля');
+    } finally {
+      setPasswordSaving(false);
+    }
   };
 
   const getUserTypeIcon = (type) => {
@@ -1755,11 +1836,19 @@ const ProfilePage = () => {
                       </div>
                     </div>
                     <div className="profile-actions">
+                      {profileSaveError && (
+                        <div className="profile-save-error">{profileSaveError}</div>
+                      )}
                       {isEditing ? (
                         <div className="profile-edit-actions">
-                          <button className="profile-action-button profile-action-save" onClick={handleSave}>
+                          <button
+                            type="button"
+                            className="profile-action-button profile-action-save"
+                            onClick={handleSave}
+                            disabled={profileSaving}
+                          >
                             <Save size={16} />
-                            Сохранить
+                            {profileSaving ? 'Сохранение...' : 'Сохранить'}
                           </button>
                           <button className="profile-action-button profile-action-cancel" onClick={handleCancel}>
                             <X size={16} />
@@ -1888,8 +1977,8 @@ const ProfilePage = () => {
                       Безопасность
                     </h3>
                     <div className="profile-security-actions">
-                      <button className="profile-security-button">
-                        <Settings size={16} />
+                      <button type="button" className="profile-security-button" onClick={openPasswordModal}>
+                        <Key size={16} />
                         Сменить пароль
                       </button>
                       <button className="profile-security-button">
@@ -1918,6 +2007,72 @@ const ProfilePage = () => {
           </div>
         </div>
       </section>
+
+      {/* Модальное окно смены пароля */}
+      <div className={`password-modal-overlay ${isPasswordModalOpen ? 'active' : ''}`} onClick={closePasswordModal} aria-hidden={!isPasswordModalOpen}>
+        <div className="password-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="password-modal-header">
+            <div className="password-modal-title-wrap">
+              <Lock size={22} className="password-modal-icon" />
+              <h3 className="password-modal-title">Смена пароля</h3>
+            </div>
+            <p className="password-modal-subtitle">Введите новый пароль (не менее 6 символов)</p>
+            <button type="button" className="password-modal-close" onClick={closePasswordModal} aria-label="Закрыть">
+              <X size={20} />
+            </button>
+          </div>
+          <form className="password-modal-form" onSubmit={handleChangePassword}>
+            {passwordError && <div className="password-modal-error">{passwordError}</div>}
+            {passwordSuccess && <div className="password-modal-success">{passwordSuccess}</div>}
+            <div className="password-modal-field">
+              <label className="password-modal-label">Новый пароль</label>
+              <div className="password-modal-input-wrap">
+                <Lock size={18} className="password-modal-input-icon" />
+                <input
+                  type={showNewPassword ? 'text' : 'password'}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="password-modal-input"
+                  placeholder="••••••••"
+                  autoComplete="new-password"
+                  minLength={6}
+                  disabled={passwordSaving}
+                />
+                <button type="button" className="password-modal-toggle" onClick={() => setShowNewPassword((v) => !v)} aria-label={showNewPassword ? 'Скрыть пароль' : 'Показать пароль'}>
+                  {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+            <div className="password-modal-field">
+              <label className="password-modal-label">Подтвердите пароль</label>
+              <div className="password-modal-input-wrap">
+                <Lock size={18} className="password-modal-input-icon" />
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="password-modal-input"
+                  placeholder="••••••••"
+                  autoComplete="new-password"
+                  minLength={6}
+                  disabled={passwordSaving}
+                />
+                <button type="button" className="password-modal-toggle" onClick={() => setShowConfirmPassword((v) => !v)} aria-label={showConfirmPassword ? 'Скрыть пароль' : 'Показать пароль'}>
+                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+            <div className="password-modal-actions">
+              <button type="button" className="password-modal-btn password-modal-btn-cancel" onClick={closePasswordModal} disabled={passwordSaving}>
+                Отмена
+              </button>
+              <button type="submit" className="password-modal-btn password-modal-btn-submit" disabled={passwordSaving}>
+                {passwordSaving ? 'Сохранение...' : 'Сохранить пароль'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
 
       <PatientCardModal />
     </div>
