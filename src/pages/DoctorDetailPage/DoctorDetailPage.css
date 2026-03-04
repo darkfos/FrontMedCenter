@@ -12,6 +12,36 @@
   padding: 0 2rem;
 }
 
+.doctor-detail-loading .doctor-detail-container {
+  padding: 4rem 2rem;
+}
+
+.doctor-detail-loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 3rem;
+  color: #64748b;
+}
+
+.doctor-detail-spinner {
+  animation: doctor-detail-spin 0.8s linear infinite;
+}
+
+@keyframes doctor-detail-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.doctor-detail-no-slots,
+.doctor-detail-no-contacts {
+  color: #64748b;
+  padding: 1rem;
+  text-align: center;
+}
+
 /* Герой-секция */
 .doctor-detail-hero {
   padding: 4rem 0;
@@ -453,6 +483,33 @@
   box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
 }
 
+.doctor-detail-submit-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.doctor-detail-review-login-hint {
+  font-size: 0.875rem;
+  color: #64748b;
+  margin: 0;
+}
+
+.doctor-detail-review-login-hint a {
+  color: #10b981;
+  text-decoration: none;
+}
+
+.doctor-detail-review-login-hint a:hover {
+  text-decoration: underline;
+}
+
+.doctor-detail-review-error {
+  color: #ef4444;
+  font-size: 0.875rem;
+  margin: 0 0 0.75rem 0;
+}
+
 /* Список отзывов */
 .doctor-detail-reviews-list {
   display: flex;
@@ -581,6 +638,57 @@
 .doctor-detail-no-reviews p:first-of-type {
   font-weight: 600;
   margin-bottom: 0.25rem;
+}
+
+.doctor-detail-reviews-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1.5rem;
+  color: #64748b;
+  font-size: 0.875rem;
+}
+
+.doctor-detail-reviews-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1rem 0 0;
+  margin-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.doctor-detail-pagination-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  color: #64748b;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.doctor-detail-pagination-btn:hover:not(:disabled) {
+  background: #f1f5f9;
+  color: #10b981;
+  border-color: #10b981;
+}
+
+.doctor-detail-pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.doctor-detail-pagination-info {
+  font-size: 0.875rem;
+  color: #64748b;
 }
 
 /* Контакты */

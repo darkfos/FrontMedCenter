@@ -263,30 +263,30 @@ const DoctorsPage = () => {
                         <div className="doctor-rating">
                           <Star size={14} />
                           <span className="rating-value">{doctor.rating}</span>
-                          <span className="rating-reviews">({doctor.doctorReviews.length} отзывов)</span>
+                          <span className="rating-reviews">({(doctor.doctorReviews || []).length} отзывов)</span>
                         </div>
                       </div>
                     </div>
                     
                     <div className="doctor-specialty-badge">
-                      {doctor.clinicType.name}
+                      {doctor.clinicType?.name ?? '—'}
                     </div>
                     
-                    <p className="doctor-description">{doctor.description}</p>
+                    <p className="doctor-description">{doctor.description ?? doctor.position ?? ''}</p>
                     
                     <div className="doctor-details">
                       <div className="doctor-detail">
                         <Clock size={16} />
-                        <span>{doctor.experience} лет опыта</span>
+                        <span>{doctor.experience ?? 0} лет опыта</span>
                       </div>
                       <div className="doctor-detail">
                         <Calendar size={16} />
-                        <span>{doctor.dayWork.days.join(', ')}, {doctor.scheduleWork}</span>
+                        <span>{(doctor.dayWork?.days || []).join(', ')}, {doctor.scheduleWork ?? ''}</span>
                       </div>
                     </div>
                     
                     <div className="doctor-services">
-                      {doctor.competencies.slice(0, 3).map((service, index) => (
+                      {(doctor.competencies || []).slice(0, 3).map((service, index) => (
                         <div key={index} className="service-item">
                           <Check size={12} />
                           <span>{service}</span>

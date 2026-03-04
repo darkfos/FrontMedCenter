@@ -285,7 +285,7 @@ const ServicesPage = () => {
                         style={{ width: `${service.popularity}%` }}
                       />
                     </div>
-                    <span>{Number(service.recLike > 0 ? service.recLike : 90) / Number(service.recDeslike > 0 ? service.resDeslike : 1)}% пациентов рекомендуют</span>
+                    <span>{((service.recLike / (service.recLike + service.recDeslike)) * 100).toFixed(2)}% пациентов рекомендуют</span>
                   </div>
                   
                   <div className="service-price">

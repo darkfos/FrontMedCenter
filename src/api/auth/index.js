@@ -51,4 +51,12 @@ export class AuthAPI {
         });
         return result;
     }
+
+    static async changeUnsignedPassword(email, password) {
+        const { data } = await api.post(`${AuthAPI.PREFIX}/change-unsigned-password`, {
+            email: email,
+            password: password,
+        });
+        return data;
+    }
 }

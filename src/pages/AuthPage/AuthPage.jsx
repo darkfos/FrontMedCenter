@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useForm, Controller } from 'react-hook-form';
 import {
   User,
   Mail,
@@ -7,7 +8,9 @@ import {
   Eye,
   EyeOff,
   Shield,
-  Check
+  LockKeyhole,
+  Check,
+  MailIcon
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -24,12 +27,17 @@ const getErrorMessage = (error) => {
 
 const AuthPage = () => {
   const navigate = useNavigate();
+
   const { login, currentUser } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [resetPassword, setResetPassword] = useState(false);
+  const [successResetPassword, setSuccessResetPassword] = useState('');
+
+  const { control: resetPasswordControl, handleSubmit: handleSubmitResetPasswordForm } = useForm();
 
   React.useEffect(() => {
     if (currentUser) {
@@ -103,6 +111,139 @@ const AuthPage = () => {
       setSubmitting(false);
     }
   };
+
+  const handleSubmitResetPassword = async (data) => {
+    setErrorMessage('');
+    setSubmitting(true);
+
+    if (data.password !== data.confirmPassword) {
+      setErrorMessage('Пароли не совпадают');
+    }
+
+    if (data.password.length < 6) {
+      setErrorMessage('Пароль должен быть не менее 6 символов');
+    }
+
+    const req = await AuthAPI.changeUnsignedPassword(data.email, data.password);
+    console.log(req);
+    if (req.message === 'Пароль успешно изменён') {
+      setSubmitting(false);
+      setResetPassword(false);
+      setSuccessResetPassword(req.message);
+    } else {
+      return setErrorMessage('Пароль успешно изменен');
+    }
+
+  };
+
+  if (resetPassword) {
+    return (
+      <div className="auth-page">
+      <div className="auth-bg-shapes">
+        <div className="auth-circle auth-circle1"></div>
+        <div className="auth-circle auth-circle2"></div>
+        <div className="auth-circle auth-circle3"></div>
+        <div className="auth-circle auth-circle4"></div>
+      </div>
+
+      <section className="auth-section">
+        <div className="auth-container">
+          <div className="auth-header">
+            <h1 className="auth-title">
+              Добро пожаловать в
+              <span className="auth-title-highlight">MediCare</span>
+            </h1>
+            <p className="auth-description">
+              Восстановление пароля
+            </p>
+          </div>
+
+          <div className="auth-card" style={{ maxWidth: '680px', margin: '0 auto' }}>
+
+            {/* Сообщение об ошибке или успехе */}
+            {errorMessage && (
+              <div className={`auth-error-message ${errorMessage.includes('успешно') ? 'auth-success-message' : ''}`}>
+                {errorMessage}
+              </div>
+            )}
+
+            {successResetPassword && (
+              <div className="auth-success-message">
+                {successResetPassword}
+              </div>
+            )}
+
+            <form className="auth-form" onSubmit={handleSubmitResetPasswordForm(handleSubmitResetPassword)}>
+                <div style={{ width: '100%'}}>
+                  <div className="auth-form-section" style={{ width: '100%' }}>
+                    <h2 className="auth-section-title">Восстановление пароля</h2>
+                    <p className="auth-section-subtitle">Введите ваш новый пароль</p>
+
+                    <div className="auth-name-group" style={{ flexDirection: 'column', display: 'flex', alignItems: 'center', width: '100%' }}>
+                      <div className="auth-input-group" style={{ width: '100%' }}>
+                          <label className="auth-label">Email</label>
+                          <div className="auth-input-wrapper" style={{ width: '100%' }}>
+                            <Controller 
+                              control={resetPasswordControl}
+                              name='email'
+                              rules={{ required: true }}
+                              render={({ field }) => (
+                                <div className="auth-input-wrapper" style={{ width: '100%' }}>
+                                  <MailIcon size={18} className="auth-input-icon" />
+                                  <input type="email" {...field} placeholder="Ваша электронная почта" className="auth-input" required  style={{ width: '100%' }} />
+                                </div>
+                              )}
+                            />
+                          </div>
+                        </div>
+                      <div className="auth-input-group" style={{ width: '100%' }}>
+                        <label className="auth-label">Пароль</label>
+                        <div className="auth-input-wrapper" style={{ width: '100%' }}>
+                          <Controller 
+                            control={resetPasswordControl}
+                            name='password'
+                            rules={{ required: true }}
+                            render={({ field }) => (
+                              <div className="auth-input-wrapper" style={{ width: '100%' }}>
+                                <LockKeyhole size={18} className="auth-input-icon" />
+                                <input type="password" {...field} placeholder="Ваше новый пароль" className="auth-input" required  style={{ width: '100%' }} />
+                              </div>
+                            )}
+                          />
+                        </div>
+                      </div>
+                      <div className="auth-input-group" style={{ width: '100%' }}>
+                        <label className="auth-label">Повторите пароль</label>
+                        <div className="auth-input-wrapper" style={{ width: '100%' }}>
+                          <Controller 
+                            control={resetPasswordControl}
+                            name='confirmPassword'
+                            rules={{ required: true }}
+                            render={({ field }) => (
+                              <div className="auth-input-wrapper" style={{ width: '100%' }}>
+                                <LockKeyhole size={18} className="auth-input-icon" />
+                                <input type="password" {...field} placeholder="Повторите ваш новый пароль" style={{ width: '100%' }} className="auth-input" required />
+                              </div>
+                            )}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      className="auth-submit-button"
+                      type="submit"
+                    >
+                      Вход
+                    </button>
+                  </div>
+                </div>
+            </form>
+          </div>
+        </div>
+      </section>
+    </div>
+    )
+  }
 
   return (
     <div className="auth-page">
@@ -333,7 +474,7 @@ const AuthPage = () => {
                   </div>
 
                   <div className="auth-forgot-password">
-                    <button type="button" className="auth-forgot-link">
+                    <button type="button" className="auth-forgot-link" onClick={() => setResetPassword(true)}>
                       Забыли пароль?
                     </button>
                   </div>

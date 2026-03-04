@@ -22,4 +22,9 @@ export class DoctorAPI {
         const req = await api.get(`/${DoctorAPI.PREFIX}/oldest`, {});
         return req.data;
     }
+
+    static async getById(id) {
+        const req = await api.get(`/${DoctorAPI.PREFIX}/${id}`);
+        return req.data;
+    }
 }

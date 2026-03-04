@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Calendar, 
   Clock, 
-  User, 
   Phone, 
   Video, 
   Check, 
@@ -14,11 +13,26 @@ import {
   Award,
   Star,
   Users,
-  Activity
+  Activity,
+  Loader2,
+  User
 } from 'lucide-react';
 import './ConsultationsPage.css';
+import { DoctorAPI } from '../../api/doctor';
+import { getAvailableSlots, createAppointment } from '../../api/appointments';
+
+/** По formatWork определяем, поддерживает ли врач очную и/или онлайн консультацию */
+function getConsultationTypes(formatWork) {
+  if (!formatWork) return ['in-person', 'online'];
+  const f = String(formatWork).toLowerCase();
+  if (f === 'och') return ['in-person'];
+  if (f === 'zoch') return ['online'];
+  return ['in-person', 'online']; // other
+}
 
 const ConsultationsPage = () => {
+  const [doctors, setDoctors] = useState([]);
+  const [doctorsLoading, setDoctorsLoading] = useState(true);
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
@@ -31,65 +45,40 @@ const ConsultationsPage = () => {
     email: '',
     symptoms: ''
   });
+  const [availableSlots, setAvailableSlots] = useState({ available: [] });
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [bookingSubmitError, setBookingSubmitError] = useState('');
+  const [bookingSubmitting, setBookingSubmitting] = useState(false);
 
-  const doctors = [
-    {
-      id: 1,
-      name: 'Доктор Анна Смирнова',
-      specialty: 'Терапевт высшей категории',
-      experience: '15 лет опыта',
-      rating: 4.9,
-      reviews: 127,
-      consultationTypes: ['in-person', 'online'],
-      availableDates: ['2024-01-20', '2024-01-21', '2024-01-22'],
-      availableTimes: ['10:00', '11:00', '14:00', '15:00'],
-      description: 'Специалист по профилактике и лечению хронических заболеваний',
-      education: 'Московский медицинский университет',
-      image: 'АС'
-    },
-    {
-      id: 2,
-      name: 'Доктор Сергей Иванов',
-      specialty: 'Кардиолог, к.м.н.',
-      experience: '12 лет опыта',
-      rating: 4.8,
-      reviews: 98,
-      consultationTypes: ['in-person'],
-      availableDates: ['2024-01-20', '2024-01-22', '2024-01-23'],
-      availableTimes: ['09:00', '11:00', '16:00', '17:00'],
-      description: 'Эксперт по заболеваниям сердечно-сосудистой системы',
-      education: 'Санкт-Петербургский медицинский университет',
-      image: 'СИ'
-    },
-    {
-      id: 3,
-      name: 'Доктор Елена Козлова',
-      specialty: 'Невролог',
-      experience: '10 лет опыта',
-      rating: 5.0,
-      reviews: 84,
-      consultationTypes: ['in-person', 'online'],
-      availableDates: ['2024-01-21', '2024-01-22', '2024-01-24'],
-      availableTimes: ['10:30', '13:00', '14:30', '16:00'],
-      description: 'Специалист по заболеваниям нервной системы',
-      education: 'Новосибирский медицинский университет',
-      image: 'ЕК'
-    },
-    {
-      id: 4,
-      name: 'Доктор Мария Петрова',
-      specialty: 'Эндокринолог',
-      experience: '8 лет опыта',
-      rating: 4.7,
-      reviews: 63,
-      consultationTypes: ['online'],
-      availableDates: ['2024-01-20', '2024-01-23', '2024-01-24'],
-      availableTimes: ['09:00', '12:00', '15:00', '18:00'],
-      description: 'Специалист по гормональным нарушениям',
-      education: 'Казанский медицинский университет',
-      image: 'МП'
-    }
-  ];
+  useEffect(() => {
+    setDoctorsLoading(true);
+    DoctorAPI.getFilteredDoctors(undefined, undefined, undefined, 200)
+      .then((list) => setDoctors(Array.isArray(list) ? list : []))
+      .catch(() => setDoctors([]))
+      .finally(() => setDoctorsLoading(false));
+  }, []);
+
+  const filteredDoctors = useMemo(() => {
+    return doctors.filter((d) => {
+      const types = getConsultationTypes(d.formatWork);
+      return types.includes(consultationType);
+    });
+  }, [doctors, consultationType]);
+
+  useEffect(() => {
+    if (!selectedDoctor?.id || !isBookingModalOpen) return;
+    setSlotsLoading(true);
+    setAvailableSlots({ available: [] });
+    const today = new Date();
+    const from = today.toISOString().slice(0, 10);
+    const toDate = new Date(today);
+    toDate.setDate(toDate.getDate() + 28);
+    const to = toDate.toISOString().slice(0, 10);
+    getAvailableSlots(selectedDoctor.id, from, to)
+      .then((data) => setAvailableSlots(data ?? { available: [] }))
+      .catch(() => setAvailableSlots({ available: [] }))
+      .finally(() => setSlotsLoading(false));
+  }, [selectedDoctor?.id, isBookingModalOpen]);
 
   const consultationTypes = [
     {
@@ -145,6 +134,8 @@ const ConsultationsPage = () => {
 
   const handleDoctorSelect = (doctor) => {
     setSelectedDoctor(doctor);
+    setSelectedDate('');
+    setSelectedTime('');
     setBookingStep(2);
   };
 
@@ -167,11 +158,25 @@ const ConsultationsPage = () => {
 
   const handleSubmitBooking = (e) => {
     e.preventDefault();
-    if (bookingStep === 4) {
-      alert(`Запись успешно оформлена!\nВрач: ${selectedDoctor.name}\nДата: ${selectedDate}\nВремя: ${selectedTime}\nТип: ${consultationType === 'in-person' ? 'Очная' : 'Онлайн'}`);
-      setIsBookingModalOpen(false);
-      resetBooking();
-    }
+    if (bookingStep !== 4 || !selectedDoctor?.id || !selectedDate || !selectedTime) return;
+    setBookingSubmitError('');
+    setBookingSubmitting(true);
+    createAppointment({
+      doctorId: selectedDoctor.id,
+      dateVisit: selectedDate,
+      time: selectedTime,
+    })
+      .then(() => {
+        const doctorName = selectedDoctor.fullName ?? selectedDoctor.name ?? 'Врач';
+        alert(`Запись успешно оформлена!\nВрач: ${doctorName}\nДата: ${selectedDate}\nВремя: ${selectedTime}\nТип: ${consultationType === 'in-person' ? 'Очная' : 'Онлайн'}\nМы свяжемся с вами для подтверждения.`);
+        setIsBookingModalOpen(false);
+        resetBooking();
+      })
+      .catch((err) => {
+        const msg = err?.response?.data?.message ?? (err?.response?.status === 401 ? 'Войдите в аккаунт, чтобы записаться на приём' : 'Не удалось создать запись');
+        setBookingSubmitError(msg);
+      })
+      .finally(() => setBookingSubmitting(false));
   };
 
   const resetBooking = () => {
@@ -179,6 +184,8 @@ const ConsultationsPage = () => {
     setSelectedDate('');
     setSelectedTime('');
     setBookingStep(1);
+    setAvailableSlots({ available: [] });
+    setBookingSubmitError('');
     setFormData({
       name: '',
       phone: '',
@@ -186,6 +193,11 @@ const ConsultationsPage = () => {
       symptoms: ''
     });
   };
+
+  const availableDates = availableSlots?.available ?? [];
+  const availableTimesForDate = selectedDate
+    ? (availableDates.find((a) => a.date === selectedDate)?.slots ?? [])
+    : [];
 
   const startBooking = () => {
     setIsBookingModalOpen(true);
@@ -283,67 +295,95 @@ const ConsultationsPage = () => {
         <div className="consultations-container">
           <div className="consultations-section-header">
             <h2>Наши специалисты</h2>
-            <p>Выберите врача для записи на прием</p>
+            <p>
+              {consultationType === 'in-person'
+                ? 'Врачи, доступные для очной консультации'
+                : 'Врачи, доступные для онлайн консультации'}
+            </p>
           </div>
 
-          <div className="doctors-grid">
-            {doctors
-              .filter(doctor => consultationType === 'both' || doctor.consultationTypes.includes(consultationType))
-              .map((doctor) => (
-                <div key={doctor.id} className="doctor-card">
-                  <div className="doctor-header">
-                    <div className="doctor-avatar">
-                      <span>{doctor.image}</span>
+          {doctorsLoading ? (
+            <div className="consultations-doctors-loading">
+              <Loader2 size={40} className="consultations-spinner" />
+              <p>Загрузка списка врачей...</p>
+            </div>
+          ) : filteredDoctors.length === 0 ? (
+            <div className="consultations-doctors-empty">
+              <User size={48} />
+              <p>По выбранному формату консультации врачи не найдены</p>
+              <p className="consultations-doctors-empty-hint">
+                Попробуйте выбрать другой тип консультации выше
+              </p>
+            </div>
+          ) : (
+            <div className="doctors-grid">
+              {filteredDoctors.map((doctor) => {
+                const consultationTypes = getConsultationTypes(doctor.formatWork);
+                return (
+                  <div key={doctor.id} className="doctor-card">
+                    <div className="doctor-header">
+                      <div className="doctor-avatar">
+                        <User size={24} color="white" />
+                      </div>
+                      <div className="doctor-info">
+                        <h3>{doctor.fullName}</h3>
+                        <p className="doctor-specialty">{doctor.clinicType?.name ?? doctor.position ?? '—'}</p>
+                      </div>
                     </div>
-                    <div className="doctor-info">
-                      <h3>{doctor.name}</h3>
-                      <p className="doctor-specialty">{doctor.specialty}</p>
+                    
+                    <div className="doctor-rating">
+                      <Star size={16} />
+                      <span>{Number(doctor.rating) ?? '—'}</span>
+                      <span className="reviews">({(doctor.doctorReviews || []).length} отзывов)</span>
                     </div>
-                  </div>
-                  
-                  <div className="doctor-rating">
-                    <Star size={16} />
-                    <span>{doctor.rating}</span>
-                    <span className="reviews">({doctor.reviews} отзывов)</span>
-                  </div>
-                  
-                  <p className="doctor-description">{doctor.description}</p>
-                  
-                  <div className="doctor-details">
-                    <div className="doctor-experience">
-                      <Clock size={14} />
-                      <span>{doctor.experience}</span>
+                    
+                    <p className="doctor-description">{doctor.description || doctor.position || ''}</p>
+                    
+                    <div className="doctor-details">
+                      <div className="doctor-experience">
+                        <Clock size={14} />
+                        <span>{doctor.experience ?? 0} лет опыта</span>
+                      </div>
+                      {(doctor.education || doctor.studyBuild) && (
+                        <div className="doctor-education">
+                          <Award size={14} />
+                          <span>{doctor.education || doctor.studyBuild}</span>
+                        </div>
+                      )}
                     </div>
-                    <div className="doctor-education">
-                      <Award size={14} />
-                      <span>{doctor.education}</span>
-                    </div>
-                  </div>
 
-                  <div className="doctor-consultation-types">
-                    {doctor.consultationTypes.map((type, index) => (
-                      <span 
-                        key={index} 
-                        className={`consultation-type-badge ${type}`}
+                    <div className="doctor-consultation-types">
+                      {consultationTypes.map((type, index) => (
+                        <span
+                          key={index}
+                          className={`consultation-type-badge ${type}`}
+                        >
+                          {type === 'in-person' ? 'Очно' : 'Онлайн'}
+                        </span>
+                      ))}
+                    </div>
+
+                    <div className="doctor-card-actions">
+                      <Link to={`/doctors/${doctor.id}`} className="doctor-link-button">
+                        Подробнее
+                        <ChevronRight size={16} />
+                      </Link>
+                      <button
+                        className="doctor-book-button"
+                        onClick={() => {
+                          setSelectedDoctor(doctor);
+                          setIsBookingModalOpen(true);
+                        }}
                       >
-                        {type === 'in-person' ? 'Очно' : 'Онлайн'}
-                      </span>
-                    ))}
+                        <Calendar size={16} />
+                        <span>Записаться на прием</span>
+                      </button>
+                    </div>
                   </div>
-
-                  <button 
-                    className="doctor-book-button"
-                    onClick={() => {
-                      setSelectedDoctor(doctor);
-                      setIsBookingModalOpen(true);
-                    }}
-                  >
-                    <Calendar size={16} />
-                    <span>Записаться на прием</span>
-                  </button>
-                </div>
-              ))}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </section>
 
@@ -381,25 +421,25 @@ const ConsultationsPage = () => {
                 <div className="step-content">
                   <h3>Выберите специалиста</h3>
                   <div className="doctors-select">
-                    {doctors
-                      .filter(doctor => consultationType === 'both' || doctor.consultationTypes.includes(consultationType))
-                      .map((doctor) => (
-                        <div 
-                          key={doctor.id}
-                          className={`doctor-select-card ${selectedDoctor?.id === doctor.id ? 'selected' : ''}`}
-                          onClick={() => handleDoctorSelect(doctor)}
-                        >
-                          <div className="select-avatar">{doctor.image}</div>
-                          <div className="select-info">
-                            <h4>{doctor.name}</h4>
-                            <p>{doctor.specialty}</p>
-                            <div className="select-rating">
-                              <Star size={12} />
-                              <span>{doctor.rating}</span>
-                            </div>
+                    {filteredDoctors.map((doctor) => (
+                      <div
+                        key={doctor.id}
+                        className={`doctor-select-card ${selectedDoctor?.id === doctor.id ? 'selected' : ''}`}
+                        onClick={() => handleDoctorSelect(doctor)}
+                      >
+                        <div className="select-avatar">
+                          <User size={20} color="white" />
+                        </div>
+                        <div className="select-info">
+                          <h4>{doctor.fullName}</h4>
+                          <p>{doctor.clinicType?.name ?? doctor.position ?? '—'}</p>
+                          <div className="select-rating">
+                            <Star size={12} />
+                            <span>{Number(doctor.rating) ?? '—'}</span>
                           </div>
                         </div>
-                      ))}
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
@@ -407,38 +447,60 @@ const ConsultationsPage = () => {
               {bookingStep === 2 && selectedDoctor && (
                 <div className="step-content">
                   <h3>Выберите дату</h3>
-                  <div className="dates-select">
-                    {selectedDoctor.availableDates.map((date, index) => (
-                      <button
-                        key={index}
-                        className={`date-button ${selectedDate === date ? 'selected' : ''}`}
-                        onClick={() => handleDateSelect(date)}
-                      >
-                        {new Date(date).toLocaleDateString('ru-RU', { 
-                          weekday: 'short', 
-                          day: 'numeric',
-                          month: 'short'
-                        })}
-                      </button>
-                    ))}
-                  </div>
+                  <p className="step-content-subtitle">{selectedDoctor.fullName} — доступные дни</p>
+                  {slotsLoading ? (
+                    <div className="step-slots-loading">
+                      <Loader2 size={24} className="consultations-spinner" />
+                      <span>Загрузка доступных дат...</span>
+                    </div>
+                  ) : availableDates.length === 0 ? (
+                    <p className="step-no-slots">Нет доступных дат на ближайшие 4 недели</p>
+                  ) : (
+                    <div className="dates-select">
+                      {availableDates.map((a) => (
+                        <button
+                          key={a.date}
+                          type="button"
+                          className={`date-button ${selectedDate === a.date ? 'selected' : ''}`}
+                          onClick={() => handleDateSelect(a.date)}
+                        >
+                          {new Date(a.date + 'T12:00:00').toLocaleDateString('ru-RU', {
+                            weekday: 'short',
+                            day: 'numeric',
+                            month: 'short',
+                          })}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
               {bookingStep === 3 && selectedDoctor && selectedDate && (
                 <div className="step-content">
                   <h3>Выберите время</h3>
-                  <div className="times-select">
-                    {selectedDoctor.availableTimes.map((time, index) => (
-                      <button
-                        key={index}
-                        className={`time-button ${selectedTime === time ? 'selected' : ''}`}
-                        onClick={() => handleTimeSelect(time)}
-                      >
-                        {time}
-                      </button>
-                    ))}
-                  </div>
+                  <p className="step-content-subtitle">{selectedDate}</p>
+                  {slotsLoading ? (
+                    <div className="step-slots-loading">
+                      <Loader2 size={24} className="consultations-spinner" />
+                      <span>Загрузка слотов...</span>
+                    </div>
+                  ) : availableTimesForDate.length === 0 ? (
+                    <p className="step-no-slots">Нет доступного времени на эту дату</p>
+                  ) : (
+                    <div className="times-select">
+                      {availableTimesForDate.map((time) => (
+                        <button
+                          key={time}
+                          type="button"
+                          className={`time-button ${selectedTime === time ? 'selected' : ''}`}
+                          onClick={() => handleTimeSelect(time)}
+                        >
+                          {time}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -446,6 +508,9 @@ const ConsultationsPage = () => {
                 <div className="step-content">
                   <h3>Ваши данные</h3>
                   <form onSubmit={handleSubmitBooking}>
+                    {bookingSubmitError && (
+                      <p className="booking-submit-error">{bookingSubmitError}</p>
+                    )}
                     <div className="form-group">
                       <label>Имя и фамилия *</label>
                       <input
@@ -491,14 +556,18 @@ const ConsultationsPage = () => {
                     
                     <div className="booking-summary">
                       <h4>Детали записи:</h4>
-                      <p><strong>Врач:</strong> {selectedDoctor?.name}</p>
+                      <p><strong>Врач:</strong> {selectedDoctor?.fullName ?? selectedDoctor?.name}</p>
                       <p><strong>Дата:</strong> {selectedDate}</p>
                       <p><strong>Время:</strong> {selectedTime}</p>
                       <p><strong>Тип:</strong> {consultationType === 'in-person' ? 'Очная консультация' : 'Онлайн консультация'}</p>
                     </div>
                     
-                    <button type="submit" className="submit-booking-button">
-                      Подтвердить запись
+                    <button
+                      type="submit"
+                      className="submit-booking-button"
+                      disabled={bookingSubmitting}
+                    >
+                      {bookingSubmitting ? 'Отправка...' : 'Подтвердить запись'}
                     </button>
                   </form>
                 </div>

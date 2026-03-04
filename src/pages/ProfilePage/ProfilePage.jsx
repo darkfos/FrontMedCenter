@@ -52,6 +52,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { AuthAPI } from '../../api/auth';
+import { AdminAPI } from '../../api/admin';
 import './ProfilePage.css';
 
 const ProfilePage = () => {
@@ -257,51 +258,33 @@ const ProfilePage = () => {
     { id: 4, item: 'Антисептик', quantity: 30, threshold: 20 }
   ]);
 
-  // Данные для администратора
+  // Данные для администратора (статистика и запросы на утверждение — с бэкенда)
   const [systemStats, setSystemStats] = useState({
-    totalUsers: 245,
-    activeDoctors: 28,
-    activePatients: 187,
-    appointmentsToday: 42,
-    revenueToday: 125400,
-    systemLoad: 67
+    totalUsers: 0,
+    usersThisMonth: 0,
+    appointmentsToday: 0,
+    revenueToday: 0,
+    revenueGrowthPercent: 0,
+    systemLoad: 67,
+    systemLoadLabel: 'Нормальная'
   });
+  const [statsLoading, setStatsLoading] = useState(false);
 
-  const [pendingRequests, setPendingRequests] = useState([
-    {
-      id: 1,
-      type: 'registration',
-      user: 'Козлов Алексей',
-      email: 'alex.kozlov@email.com',
-      date: '2024-02-15',
-      status: 'pending'
-    },
-    {
-      id: 2,
-      type: 'access',
-      user: 'Доктор Николаев',
-      email: 'dr.nikolaev@clinic.com',
-      request: 'Доступ к архиву снимков',
-      date: '2024-02-14',
-      status: 'pending'
-    },
-    {
-      id: 3,
-      type: 'equipment',
-      user: 'Отдел закупок',
-      request: 'Закупка нового УЗИ аппарата',
-      amount: 1250000,
-      date: '2024-02-13',
-      status: 'pending'
-    }
-  ]);
+  const [pendingPage, setPendingPage] = useState(1);
+  const [pendingRefresh, setPendingRefresh] = useState(0);
+  const [pendingRequests, setPendingRequests] = useState({
+    list: [],
+    total: 0,
+    page: 1,
+    pageSize: 3
+  });
+  const [pendingLoading, setPendingLoading] = useState(false);
+  const [pendingActionId, setPendingActionId] = useState(null);
 
-  const [recentActivity, setRecentActivity] = useState([
-    { id: 1, action: 'Добавлен новый пациент', user: 'Админ', time: '10:30' },
-    { id: 2, action: 'Обновлен график врача', user: 'Доктор Иванов', time: '09:45' },
-    { id: 3, action: 'Создан отчет за январь', user: 'Система', time: '08:15' },
-    { id: 4, action: 'Изменены настройки безопасности', user: 'Админ', time: 'Вчера 16:20' }
-  ]);
+  const [recentActivity, setRecentActivity] = useState([]);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [activityShowAll, setActivityShowAll] = useState(false);
+  const [activityRefresh, setActivityRefresh] = useState(0);
 
   // При каждом переходе на страницу профиля — запрос /info; при 401 interceptor сбросит storage и редирект на /auth
   useEffect(() => {
@@ -313,6 +296,78 @@ const ProfilePage = () => {
       setUserData({ ...currentUser });
     }
   }, [currentUser]);
+
+  // Загрузка статистики и запросов на утверждение для администратора
+  useEffect(() => {
+    if (!currentUser?.isAdmin) return;
+    let cancelled = false;
+    setStatsLoading(true);
+    AdminAPI.getStats()
+      .then((data) => {
+        if (!cancelled) {
+          setSystemStats({
+            totalUsers: data.totalUsers ?? 0,
+            usersThisMonth: data.usersThisMonth ?? 0,
+            appointmentsToday: data.appointmentsToday ?? 0,
+            revenueToday: data.revenueToday ?? 0,
+            revenueGrowthPercent: data.revenueGrowthPercent ?? 0,
+            systemLoad: data.systemLoad ?? 67,
+            systemLoadLabel: data.systemLoadLabel ?? 'Нормальная'
+          });
+        }
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setStatsLoading(false); });
+    return () => { cancelled = true; };
+  }, [currentUser?.isAdmin]);
+
+  const pageSize = 3;
+  useEffect(() => {
+    if (!currentUser?.isAdmin) return;
+    let cancelled = false;
+    setPendingLoading(true);
+    AdminAPI.getPendingApproval(pendingPage, pageSize)
+      .then((data) => {
+        if (!cancelled) {
+          setPendingRequests({
+            list: data.list ?? [],
+            total: data.total ?? 0,
+            page: data.page ?? pendingPage,
+            pageSize: data.pageSize ?? pageSize
+          });
+        }
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setPendingLoading(false); });
+    return () => { cancelled = true; };
+  }, [currentUser?.isAdmin, pendingPage, pendingRefresh]);
+
+  // Загрузка активности системы для администратора
+  useEffect(() => {
+    if (!currentUser?.isAdmin) return;
+    let cancelled = false;
+    setActivityLoading(true);
+    const fetchActivity = activityShowAll
+      ? AdminAPI.getActivitiesPage(1, 50).then((res) => res.list ?? [])
+      : AdminAPI.getActivities(10);
+    fetchActivity
+      .then((list) => {
+        if (!cancelled) {
+          const items = Array.isArray(list)
+            ? list.map((a) => ({
+                id: a.id,
+                action: a.eventType,
+                user: a.user ?? 'Система',
+                time: a.time ?? ''
+              }))
+            : [];
+          setRecentActivity(items);
+        }
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setActivityLoading(false); });
+    return () => { cancelled = true; };
+  }, [currentUser?.isAdmin, activityShowAll, activityRefresh]);
 
   if (!currentUser) {
     navigate('/auth');
@@ -612,21 +667,42 @@ const ProfilePage = () => {
     alert(`Запрос на пополнение: ${item}`);
   };
 
-  // Функционал для администратора
-  const approveRequest = (id) => {
-    setPendingRequests(prev =>
-      prev.map(request =>
-        request.id === id ? { ...request, status: 'approved', approvedAt: new Date().toLocaleString() } : request
-      )
-    );
+  // Функционал для администратора: утверждение/отклонение регистрации
+  const approveRequest = async (id) => {
+    setPendingActionId(id);
+    try {
+      await AdminAPI.approveUser(id);
+      setPendingRefresh((r) => r + 1);
+      setActivityRefresh((r) => r + 1);
+      AdminAPI.getStats().then((data) => {
+        setSystemStats({
+          totalUsers: data.totalUsers ?? 0,
+          usersThisMonth: data.usersThisMonth ?? 0,
+          appointmentsToday: data.appointmentsToday ?? 0,
+          revenueToday: data.revenueToday ?? 0,
+          revenueGrowthPercent: data.revenueGrowthPercent ?? 0,
+          systemLoad: data.systemLoad ?? 67,
+          systemLoadLabel: data.systemLoadLabel ?? 'Нормальная'
+        });
+      }).catch(() => {});
+    } catch (_e) {
+      // ошибка уже обработана interceptor'ом
+    } finally {
+      setPendingActionId(null);
+    }
   };
 
-  const rejectRequest = (id) => {
-    setPendingRequests(prev =>
-      prev.map(request =>
-        request.id === id ? { ...request, status: 'rejected' } : request
-      )
-    );
+  const rejectRequest = async (id) => {
+    setPendingActionId(id);
+    try {
+      await AdminAPI.rejectUser(id);
+      setPendingRefresh((r) => r + 1);
+      setActivityRefresh((r) => r + 1);
+    } catch (_e) {
+      // ошибка уже обработана interceptor'ом
+    } finally {
+      setPendingActionId(null);
+    }
   };
 
   const generateReport = (type) => {
@@ -1373,15 +1449,21 @@ const ProfilePage = () => {
               <Users size={20} />
               <span>Пользователи</span>
             </div>
-            <div className="admin-stat-value">{systemStats.totalUsers}</div>
-            <div className="admin-stat-trend positive">+12 за месяц</div>
+            <div className="admin-stat-value">
+              {statsLoading ? '—' : systemStats.totalUsers}
+            </div>
+            <div className="admin-stat-trend positive">
+              +{systemStats.usersThisMonth} за месяц
+            </div>
           </div>
           <div className="admin-stat-card">
             <div className="admin-stat-header">
               <Calendar size={20} />
               <span>Записи сегодня</span>
             </div>
-            <div className="admin-stat-value">{systemStats.appointmentsToday}</div>
+            <div className="admin-stat-value">
+              {statsLoading ? '—' : systemStats.appointmentsToday}
+            </div>
             <div className="admin-stat-trend">Запланировано</div>
           </div>
           <div className="admin-stat-card revenue">
@@ -1389,8 +1471,12 @@ const ProfilePage = () => {
               <CreditCard size={20} />
               <span>Выручка сегодня</span>
             </div>
-            <div className="admin-stat-value">{systemStats.revenueToday.toLocaleString()} ₽</div>
-            <div className="admin-stat-trend positive">+15% к прошлой неделе</div>
+            <div className="admin-stat-value">
+              {statsLoading ? '—' : Number(systemStats.revenueToday).toLocaleString()} ₽
+            </div>
+            <div className="admin-stat-trend positive">
+              +{systemStats.revenueGrowthPercent}% к прошлой неделе
+            </div>
           </div>
           <div className="admin-stat-card">
             <div className="admin-stat-header">
@@ -1398,7 +1484,7 @@ const ProfilePage = () => {
               <span>Нагрузка системы</span>
             </div>
             <div className="admin-stat-value">{systemStats.systemLoad}%</div>
-            <div className="admin-stat-trend neutral">Нормальная</div>
+            <div className="admin-stat-trend neutral">{systemStats.systemLoadLabel}</div>
           </div>
         </div>
       </div>
@@ -1409,61 +1495,94 @@ const ProfilePage = () => {
             <Shield size={18} />
             Запросы на утверждение
           </h3>
-          <button className="profile-section-action" onClick={() => alert('Все запросы')}>
+          <button
+            className="profile-section-action"
+            onClick={() => setPendingPage(1)}
+          >
             Показать все
           </button>
         </div>
-        
-        <div className="requests-panel">
-          {pendingRequests.map(request => (
-            <div key={request.id} className="request-card">
-              <div className="request-header">
-                <div className="request-type">
-                  {request.type === 'registration' && 'Регистрация'}
-                  {request.type === 'access' && 'Доступ'}
-                  {request.type === 'equipment' && 'Закупка'}
+
+        {pendingLoading && pendingRequests.list.length === 0 ? (
+          <div className="requests-panel">Загрузка...</div>
+        ) : (
+          <>
+            <div className="requests-panel">
+              {pendingRequests.list.map((user) => (
+                <div key={user.id} className="request-card">
+                  <div className="request-header">
+                    <div className="request-type">Регистрация</div>
+                    <div className="request-date">
+                      {user.createdAt
+                        ? new Date(user.createdAt).toLocaleDateString('ru-RU', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit'
+                          })
+                        : '—'}
+                    </div>
+                  </div>
+                  <div className="request-info">
+                    <div className="request-user">{user.fullName || 'Без имени'}</div>
+                    {user.email && <div className="request-email">{user.email}</div>}
+                  </div>
+                  <div className="request-actions">
+                    <button
+                      className="request-action-btn approve"
+                      disabled={pendingActionId === user.id}
+                      onClick={() => approveRequest(user.id)}
+                    >
+                      <CheckCircle size={14} />
+                      Утвердить
+                    </button>
+                    <button
+                      className="request-action-btn reject"
+                      disabled={pendingActionId === user.id}
+                      onClick={() => rejectRequest(user.id)}
+                    >
+                      <X size={14} />
+                      Отклонить
+                    </button>
+                    <button className="request-action-btn" type="button">
+                      <MessageSquare size={14} />
+                      Обсудить
+                    </button>
+                  </div>
                 </div>
-                <div className="request-date">{request.date}</div>
-              </div>
-              <div className="request-info">
-                <div className="request-user">{request.user}</div>
-                {request.email && <div className="request-email">{request.email}</div>}
-                {request.request && <div className="request-text">{request.request}</div>}
-                {request.amount && (
-                  <div className="request-amount">{request.amount.toLocaleString()} ₽</div>
-                )}
-              </div>
-              {request.status === 'pending' && (
-                <div className="request-actions">
-                  <button 
-                    className="request-action-btn approve"
-                    onClick={() => approveRequest(request.id)}
-                  >
-                    <CheckCircle size={14} />
-                    Утвердить
-                  </button>
-                  <button 
-                    className="request-action-btn reject"
-                    onClick={() => rejectRequest(request.id)}
-                  >
-                    <X size={14} />
-                    Отклонить
-                  </button>
-                  <button className="request-action-btn">
-                    <MessageSquare size={14} />
-                    Обсудить
-                  </button>
-                </div>
-              )}
-              {request.status === 'approved' && (
-                <div className="request-status approved">
-                  <CheckCircle size={14} />
-                  Утверждено {request.approvedAt}
-                </div>
-              )}
+              ))}
             </div>
-          ))}
-        </div>
+            {pendingRequests.total > pendingRequests.pageSize && (
+              <div className="profile-pagination">
+                <span className="profile-pagination-info">
+                  Страница {pendingRequests.page} из{' '}
+                  {Math.ceil(pendingRequests.total / pendingRequests.pageSize) || 1}
+                </span>
+                <div className="profile-pagination-buttons">
+                  <button
+                    type="button"
+                    className="profile-pagination-btn"
+                    disabled={pendingRequests.page <= 1 || pendingLoading}
+                    onClick={() => setPendingPage((p) => Math.max(1, p - 1))}
+                  >
+                    Назад
+                  </button>
+                  <button
+                    type="button"
+                    className="profile-pagination-btn"
+                    disabled={
+                      pendingRequests.page >=
+                        Math.ceil(pendingRequests.total / pendingRequests.pageSize) ||
+                      pendingLoading
+                    }
+                    onClick={() => setPendingPage((p) => p + 1)}
+                  >
+                    Вперёд
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       <div className="profile-content-block">
@@ -1529,17 +1648,26 @@ const ProfilePage = () => {
           Активность системы
         </h3>
         <div className="activity-log">
-          {recentActivity.map(activity => (
-            <div key={activity.id} className="activity-item">
-              <div className="activity-action">{activity.action}</div>
-              <div className="activity-meta">
-                <span className="activity-user">{activity.user}</span>
-                <span className="activity-time">{activity.time}</span>
+          {activityLoading && recentActivity.length === 0 ? (
+            <div className="activity-placeholder">Загрузка...</div>
+          ) : (
+            recentActivity.map((activity) => (
+              <div key={activity.id} className="activity-item">
+                <div className="activity-action">{activity.action}</div>
+                <div className="activity-meta">
+                  <span className="activity-user">{activity.user}</span>
+                  <span className="activity-time">{activity.time}</span>
+                </div>
               </div>
-            </div>
-          ))}
-          <button className="view-all-activity">
-            Показать всю активность
+            ))
+          )}
+          <button
+            type="button"
+            className="view-all-activity"
+            disabled={activityLoading}
+            onClick={() => setActivityShowAll((prev) => !prev)}
+          >
+            {activityShowAll ? 'Свернуть' : 'Показать всю активность'}
           </button>
         </div>
       </div>
