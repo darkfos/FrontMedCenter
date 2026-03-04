@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  Stethoscope, 
-  Heart, 
-  Brain, 
-  Bone, 
-  Eye, 
-  Scissors, 
-  Baby, 
+  Stethoscope,
+  Heart,
+  Brain,
+  Bone,
+  Eye,
+  Scissors,
+  Baby,
   Pill,
   Calendar,
   Clock,
@@ -19,19 +19,38 @@ import {
   Award,
   Star,
   Sparkles,
+  User,
+  Loader2,
 } from 'lucide-react';
 
-import { ClinicAPI} from "../../api/clinic";
+import { useNavigate } from 'react-router-dom';
+import { ClinicAPI } from "../../api/clinic";
+import { getAvailableSlots, createAppointment } from '../../api/appointments';
 import { debounce } from "../../utils/debounce";
+import { useInfoModal } from '../../context/InfoModalContext';
+import { useAuth } from '../../context/AuthContext';
 import './ServicesPage.css';
 
 const ServicesPage = () => {
+  const navigate = useNavigate();
+  const { openInfo } = useInfoModal();
+  const { currentUser } = useAuth();
   const [clinicCategories, setClinicCategories] = useState([]);
   const [services, setServices] = useState([]);
 
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedService, setSelectedService] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Запись на услугу: шаги 1 — врач, 2 — дата, 3 — время
+  const [bookingStep, setBookingStep] = useState(0);
+  const [bookingDoctor, setBookingDoctor] = useState(null);
+  const [bookingDate, setBookingDate] = useState('');
+  const [bookingTime, setBookingTime] = useState('');
+  const [availableSlots, setAvailableSlots] = useState({ available: [] });
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [bookingSubmitting, setBookingSubmitting] = useState(false);
+  const [bookingError, setBookingError] = useState('');
 
   const fetchServices = useMemo(() => {
       return debounce(async (...args) => {
@@ -98,10 +117,124 @@ const ServicesPage = () => {
 
   const handleServiceSelect = (service) => {
     setSelectedService(service);
+    setBookingStep(0);
+    setBookingDoctor(null);
+    setBookingDate('');
+    setBookingTime('');
+    setBookingError('');
   };
 
-  const handleBookService = () => {
-    alert(`Вы выбрали услугу: ${selectedService.name}\nСтоимость: ${selectedService.price}\nНаправляем вас к записи на прием...`);
+  const serviceDoctors = (selectedService?.doctors ?? []).filter(
+    (d) => currentUser?.type !== 'doctor' || Number(d.id) !== Number(currentUser?.id)
+  );
+  const availableDates = availableSlots?.available ?? [];
+  const availableTimesForDate = bookingDate
+    ? (availableDates.find((a) => a.date === bookingDate)?.slots ?? [])
+    : [];
+
+  // Загрузка слотов при выборе врача
+  useEffect(() => {
+    if (!bookingDoctor?.id || !selectedService) return;
+    setSlotsLoading(true);
+    setAvailableSlots({ available: [] });
+    const today = new Date();
+    const from = today.toISOString().slice(0, 10);
+    const toDate = new Date(today);
+    toDate.setDate(toDate.getDate() + 28);
+    const to = toDate.toISOString().slice(0, 10);
+    getAvailableSlots(bookingDoctor.id, from, to)
+      .then((data) => setAvailableSlots(data ?? { available: [] }))
+      .catch(() => setAvailableSlots({ available: [] }))
+      .finally(() => setSlotsLoading(false));
+  }, [bookingDoctor?.id, selectedService]);
+
+  const handleStartBooking = () => {
+    if (!currentUser) {
+      openInfo({
+        title: 'Вход в аккаунт',
+        message: 'Войдите в аккаунт, чтобы записаться на услугу.',
+        variant: 'info',
+      });
+      navigate('/auth');
+      return;
+    }
+    if (serviceDoctors.length === 0) {
+      openInfo({
+        title: 'Нет специалистов',
+        message: 'К этой услуге пока не привязаны врачи. Обратитесь в регистратуру.',
+        variant: 'info',
+      });
+      return;
+    }
+    setBookingStep(1);
+    setBookingDoctor(null);
+    setBookingDate('');
+    setBookingTime('');
+    setBookingError('');
+  };
+
+  const handleBookingDoctorSelect = (doctor) => {
+    setBookingDoctor(doctor);
+    setBookingDate('');
+    setBookingTime('');
+    setBookingStep(2);
+  };
+
+  const handleBookingDateSelect = (date) => {
+    setBookingDate(date);
+    setBookingTime('');
+    setBookingStep(3);
+  };
+
+  const handleConfirmBooking = () => {
+    if (!bookingDoctor?.id || !bookingDate || !bookingTime) return;
+    setBookingError('');
+    setBookingSubmitting(true);
+    createAppointment({
+      doctorId: bookingDoctor.id,
+      dateVisit: bookingDate,
+      time: bookingTime,
+    })
+      .then(() => {
+        openInfo({
+          title: 'Запись оформлена',
+          message: `Вы записаны на услугу «${selectedService?.title}».\nВрач: ${bookingDoctor.fullName ?? 'Врач'}\nДата: ${bookingDate}\nВремя: ${bookingTime}\nОжидайте подтверждения.`,
+          variant: 'success',
+        });
+        setSelectedService(null);
+        setBookingStep(0);
+        setBookingDoctor(null);
+        setBookingDate('');
+        setBookingTime('');
+      })
+      .catch((err) => {
+        const msg = err?.response?.data?.message ?? (err?.response?.status === 401 ? 'Войдите в аккаунт, чтобы записаться' : 'Не удалось создать запись');
+        setBookingError(msg);
+      })
+      .finally(() => setBookingSubmitting(false));
+  };
+
+  const handleCloseModal = () => {
+    setSelectedService(null);
+    setBookingStep(0);
+    setBookingDoctor(null);
+    setBookingDate('');
+    setBookingTime('');
+    setBookingError('');
+  };
+
+  const handleBackFromBooking = () => {
+    if (bookingStep === 1) setBookingStep(0);
+    else if (bookingStep === 2) {
+      setBookingDoctor(null);
+      setBookingDate('');
+      setBookingTime('');
+      setBookingStep(1);
+    } else if (bookingStep === 3) {
+      setBookingDate('');
+      setBookingTime('');
+      setBookingStep(2);
+    }
   };
 
   useEffect(() => {
@@ -274,7 +407,7 @@ const ServicesPage = () => {
                     </div>
                     <div className="feature">
                       <Users size={16} />
-                      <span>{service.doctors.length} специалист{service.doctors.length === 1 ? '' : 'а'}</span>
+                      <span>{(service.doctors?.length ?? 0)} специалист{(service.doctors?.length ?? 0) === 1 ? '' : 'а'}</span>
                     </div>
                   </div>
                   
@@ -309,98 +442,221 @@ const ServicesPage = () => {
       </section>
 
       {selectedService && (
-        <div className="service-modal-overlay" onClick={() => setSelectedService(null)}>
+        <div className="service-modal-overlay" onClick={handleCloseModal}>
           <div className="service-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <div className="modal-header-content">
-                <h2>{selectedService.title}</h2>
+                <h2>{bookingStep === 0 ? selectedService.title : 'Запись на услугу'}</h2>
                 <p className="modal-category">
-                  {selectedService.clinicType.name}
+                  {bookingStep === 0 ? (selectedService.clinicType?.name ?? '') : `${selectedService.title} — шаг ${bookingStep} из 3`}
                 </p>
               </div>
-              <button 
+              <button
+                type="button"
                 className="modal-close"
-                onClick={() => setSelectedService(null)}
+                onClick={handleCloseModal}
+                aria-label="Закрыть"
               >
                 <Cross size={24} />
               </button>
             </div>
-            
+
             <div className="modal-content">
-              <div className="modal-details">
-                <div className="detail-row">
-                  <div className="detail-item">
-                    <Calendar size={18} />
-                    <div>
-                      <span className="detail-label">Длительность</span>
-                      <span className="detail-value">{selectedService.timeWork}</span>
+              {bookingStep === 0 && (
+                <>
+                  <div className="modal-details">
+                    <div className="detail-row">
+                      <div className="detail-item">
+                        <Calendar size={18} />
+                        <div>
+                          <span className="detail-label">Длительность</span>
+                          <span className="detail-value">{selectedService.timeWork}</span>
+                        </div>
+                      </div>
+                      <div className="detail-item">
+                        <Users size={18} />
+                        <div>
+                          <span className="detail-label">Стоимость</span>
+                          <span className="detail-value price">{selectedService.price}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="modal-description">
+                      <h3>Описание услуги</h3>
+                      <p>{selectedService.description}</p>
+                    </div>
+                    <div className="modal-features">
+                      <h3>Что входит в услугу</h3>
+                      <ul>
+                        {(selectedService.includesIn ?? []).map((feature, index) => (
+                          <li key={index}>
+                            <Check size={16} />
+                            <span>{feature}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="modal-specialists">
+                      <h3>Специалисты</h3>
+                      <div className="specialists-list">
+                        {serviceDoctors.length === 0 ? (
+                          <span className="specialist-tag specialist-tag-empty">Нет привязанных врачей</span>
+                        ) : (
+                          serviceDoctors.map((doctor) => (
+                            <span key={doctor.id} className="specialist-tag">
+                              {doctor.fullName ?? `Врач #${doctor.id}`}
+                            </span>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                    <div className="modal-rating">
+                      <div className="rating-value">
+                        <Star size={20} />
+                        <span>{selectedService.rating}</span>
+                        <span className="rating-label">рейтинг</span>
+                      </div>
+                      <div className="rating-popularity">
+                        <span>{Number(selectedCategory?.recLike > 0 ? selectedCategory.recLike : 90) / Number(selectedCategory?.recDeslike > 0 ? selectedCategory.recDeslike : 1)}%</span>
+                        <span className="popularity-label">пациентов рекомендуют</span>
+                      </div>
                     </div>
                   </div>
-                  <div className="detail-item">
-                    <Users size={18} />
-                    <div>
-                      <span className="detail-label">Стоимость</span>
-                      <span className="detail-value price">{selectedService.price}</span>
+                  <div className="modal-actions">
+                    <button type="button" className="modal-back-button" onClick={handleCloseModal}>
+                      Назад к списку
+                    </button>
+                    <button type="button" className="modal-book-button" onClick={handleStartBooking}>
+                      <Calendar size={18} />
+                      <span>Записаться на услугу</span>
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {bookingStep === 1 && (
+                <>
+                  <div className="service-booking-step">
+                    <h3>Выберите врача</h3>
+                    <div className="service-booking-doctors">
+                      {serviceDoctors.map((doctor) => (
+                        <button
+                          key={doctor.id}
+                          type="button"
+                          className={`service-booking-doctor-card ${bookingDoctor?.id === doctor.id ? 'selected' : ''}`}
+                          onClick={() => handleBookingDoctorSelect(doctor)}
+                        >
+                          <div className="service-booking-doctor-avatar">
+                            <User size={22} />
+                          </div>
+                          <div className="service-booking-doctor-info">
+                            <span className="service-booking-doctor-name">{doctor.fullName ?? `Врач #${doctor.id}`}</span>
+                            <span className="service-booking-doctor-meta">{doctor.clinicType?.name ?? doctor.position ?? '—'}</span>
+                          </div>
+                        </button>
+                      ))}
                     </div>
                   </div>
-                </div>
-                
-                <div className="modal-description">
-                  <h3>Описание услуги</h3>
-                  <p>{selectedService.description}</p>
-                </div>
-                
-                <div className="modal-features">
-                  <h3>Что входит в услугу</h3>
-                  <ul>
-                    {selectedService.includesIn.map((feature, index) => (
-                      <li key={index}>
-                        <Check size={16} />
-                        <span>{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                
-                <div className="modal-specialists">
-                  <h3>Специалисты</h3>
-                  <div className="specialists-list">
-                    {selectedService.specialists.map((specialist, index) => (
-                      <span key={index} className="specialist-tag">
-                        {specialist}
-                      </span>
-                    ))}
+                  <div className="modal-actions">
+                    <button type="button" className="modal-back-button" onClick={handleBackFromBooking}>
+                      Назад к услуге
+                    </button>
                   </div>
-                </div>
-                
-                <div className="modal-rating">
-                  <div className="rating-value">
-                    <Star size={20} />
-                    <span>{selectedService.rating}</span>
-                    <span className="rating-label">рейтинг</span>
+                </>
+              )}
+
+              {bookingStep === 2 && bookingDoctor && (
+                <>
+                  <div className="service-booking-step">
+                    <h3>Выберите дату</h3>
+                    <p className="service-booking-subtitle">{bookingDoctor.fullName} — доступные дни</p>
+                    {slotsLoading ? (
+                      <div className="service-booking-loading">
+                        <Loader2 size={24} className="service-booking-spinner" />
+                        <span>Загрузка дат…</span>
+                      </div>
+                    ) : availableDates.length === 0 ? (
+                      <p className="service-booking-empty">Нет доступных дат на ближайшие 4 недели</p>
+                    ) : (
+                      <div className="service-booking-dates">
+                        {availableDates.map((a) => (
+                          <button
+                            key={a.date}
+                            type="button"
+                            className={`service-booking-date-btn ${bookingDate === a.date ? 'selected' : ''}`}
+                            onClick={() => handleBookingDateSelect(a.date)}
+                          >
+                            {new Date(a.date + 'T12:00:00').toLocaleDateString('ru-RU', {
+                              weekday: 'short',
+                              day: 'numeric',
+                              month: 'short',
+                            })}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <div className="rating-popularity">
-                    <span>{Number(selectedCategory.recLike > 0 ? selectedCategory.recLike : 90) / Number(selectedCategory.recDeslike > 0 ? selectedCategory.resDeslike : 1)}%</span>
-                    <span className="popularity-label">пациентов рекомендуют</span>
+                  <div className="modal-actions">
+                    <button type="button" className="modal-back-button" onClick={handleBackFromBooking}>
+                      Назад
+                    </button>
                   </div>
-                </div>
-              </div>
-              
-              <div className="modal-actions">
-                <button 
-                  className="modal-back-button"
-                  onClick={() => setSelectedService(null)}
-                >
-                  Назад к списку
-                </button>
-                <button 
-                  className="modal-book-button"
-                  onClick={handleBookService}
-                >
-                  <Calendar size={18} />
-                  <span>Записаться на услугу</span>
-                </button>
-              </div>
+                </>
+              )}
+
+              {bookingStep === 3 && bookingDoctor && bookingDate && (
+                <>
+                  <div className="service-booking-step">
+                    <h3>Выберите время</h3>
+                    <p className="service-booking-subtitle">{bookingDate}</p>
+                    {slotsLoading ? (
+                      <div className="service-booking-loading">
+                        <Loader2 size={24} className="service-booking-spinner" />
+                        <span>Загрузка времени…</span>
+                      </div>
+                    ) : availableTimesForDate.length === 0 ? (
+                      <p className="service-booking-empty">Нет доступного времени на эту дату</p>
+                    ) : (
+                      <div className="service-booking-times">
+                        {availableTimesForDate.map((time) => (
+                          <button
+                            key={time}
+                            type="button"
+                            className={`service-booking-time-btn ${bookingTime === time ? 'selected' : ''}`}
+                            onClick={() => setBookingTime(time)}
+                          >
+                            {time}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {bookingError && <p className="service-booking-error">{bookingError}</p>}
+                  </div>
+                  <div className="modal-actions">
+                    <button type="button" className="modal-back-button" onClick={handleBackFromBooking}>
+                      Назад
+                    </button>
+                    <button
+                      type="button"
+                      className="modal-book-button"
+                      disabled={!bookingTime || bookingSubmitting}
+                      onClick={handleConfirmBooking}
+                    >
+                      {bookingSubmitting ? (
+                        <>
+                          <Loader2 size={18} className="service-booking-spinner" />
+                          <span>Оформление…</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check size={18} />
+                          <span>Подтвердить запись</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

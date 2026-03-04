@@ -751,6 +751,156 @@
   box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
 }
 
+.modal-book-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Шаги записи на услугу */
+.service-booking-step {
+  padding: 0.5rem 0;
+}
+
+.service-booking-step h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.service-booking-subtitle {
+  margin: 0 0 1rem;
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.service-booking-doctors {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.service-booking-doctor-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: #f8fafc;
+  border: 2px solid #e2e8f0;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+  font-family: inherit;
+}
+
+.service-booking-doctor-card:hover {
+  border-color: #10b981;
+  background: #f0fdf4;
+}
+
+.service-booking-doctor-card.selected {
+  border-color: #10b981;
+  background: #ecfdf5;
+  box-shadow: 0 0 0 1px #10b981;
+}
+
+.service-booking-doctor-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #10b981;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.service-booking-doctor-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.service-booking-doctor-name {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.service-booking-doctor-meta {
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.service-booking-loading,
+.service-booking-empty {
+  padding: 1.5rem;
+  text-align: center;
+  color: #64748b;
+  font-size: 0.9375rem;
+}
+
+.service-booking-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.service-booking-spinner {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.service-booking-dates,
+.service-booking-times {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.service-booking-date-btn,
+.service-booking-time-btn {
+  padding: 0.6rem 1rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 0.5rem;
+  background: #fff;
+  color: #334155;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.service-booking-date-btn:hover,
+.service-booking-time-btn:hover {
+  border-color: #10b981;
+  background: #f0fdf4;
+  color: #059669;
+}
+
+.service-booking-date-btn.selected,
+.service-booking-time-btn.selected {
+  border-color: #10b981;
+  background: #10b981;
+  color: white;
+}
+
+.service-booking-error {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: #fef2f2;
+  color: #b91c1c;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+}
+
 
 /* Адаптивность */
 @media (max-width: 768px) {

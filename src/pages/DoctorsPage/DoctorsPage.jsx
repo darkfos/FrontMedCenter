@@ -23,9 +23,11 @@ import './DoctorsPage.css';
 
 import { ClinicAPI } from "../../api/clinic";
 import { debounce } from "../../utils/debounce";
-import {DoctorAPI} from "../../api/doctor";
+import { DoctorAPI } from "../../api/doctor";
+import { useInfoModal } from '../../context/InfoModalContext';
 
 const DoctorsPage = () => {
+  const { openInfo } = useInfoModal();
   const [selectedSpecialty, setSelectedSpecialty] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDoctor, setSelectedDoctor] = useState(null);
@@ -81,7 +83,11 @@ const DoctorsPage = () => {
   const handleBookAppointment = (doctor, e) => {
     e.preventDefault();
     e.stopPropagation();
-    alert(`Запись на прием к врачу ${doctor.name}\nСпециализация: ${doctor.position}\nБлижайшее время: ${doctor.nextAvailable}\nМы свяжемся с вами для подтверждения записи.`);
+    openInfo({
+      title: 'Запись на приём',
+      message: `Запись на прием к врачу ${doctor.name}\nСпециализация: ${doctor.position}\nБлижайшее время: ${doctor.nextAvailable}\nМы свяжемся с вами для подтверждения записи.`,
+      variant: 'success',
+    });
   };
 
   const handleDoctorCardClick = (doctorId, e) => {

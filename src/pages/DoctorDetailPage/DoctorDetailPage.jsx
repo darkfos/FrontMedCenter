@@ -26,6 +26,7 @@ import './DoctorDetailPage.css';
 import { DoctorAPI } from '../../api/doctor';
 import { ReviewAPI } from '../../api/review';
 import { useAuth } from '../../context/AuthContext';
+import { useInfoModal } from '../../context/InfoModalContext';
 
 const AVATAR_COLORS = ['#10b981', '#8b5cf6', '#f59e0b', '#0ea5e9', '#ec4899', '#06b6d4'];
 
@@ -44,6 +45,7 @@ const formatReviewDate = (dateStr) => {
 const DoctorDetailPage = () => {
   const { id } = useParams();
   const { currentUser } = useAuth();
+  const { openInfo } = useInfoModal();
   const isAuthenticated = !!currentUser;
   const [doctor, setDoctor] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -239,7 +241,11 @@ const DoctorDetailPage = () => {
   const handleSubmitBooking = (e) => {
     e.preventDefault();
     if (bookingStep === 4) {
-      alert(`Запись успешно оформлена!\nВрач: ${doctorName}\nДата: ${selectedDate}\nВремя: ${selectedTime}\nТип: ${formData.consultationType === 'in-person' ? 'Очная' : 'Онлайн'}\nМы свяжемся с вами для подтверждения.`);
+      openInfo({
+        title: 'Запись оформлена',
+        message: `Запись успешно оформлена!\nВрач: ${doctorName}\nДата: ${selectedDate}\nВремя: ${selectedTime}\nТип: ${formData.consultationType === 'in-person' ? 'Очная' : 'Онлайн'}\nМы свяжемся с вами для подтверждения.`,
+        variant: 'success',
+      });
       setIsBookingModalOpen(false);
       resetBooking();
     }

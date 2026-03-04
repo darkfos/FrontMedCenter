@@ -20,6 +20,8 @@ import {
 import './ConsultationsPage.css';
 import { DoctorAPI } from '../../api/doctor';
 import { getAvailableSlots, createAppointment } from '../../api/appointments';
+import { useInfoModal } from '../../context/InfoModalContext';
+import { useAuth } from '../../context/AuthContext';
 
 /** По formatWork определяем, поддерживает ли врач очную и/или онлайн консультацию */
 function getConsultationTypes(formatWork) {
@@ -31,6 +33,8 @@ function getConsultationTypes(formatWork) {
 }
 
 const ConsultationsPage = () => {
+  const { openInfo } = useInfoModal();
+  const { currentUser } = useAuth();
   const [doctors, setDoctors] = useState([]);
   const [doctorsLoading, setDoctorsLoading] = useState(true);
   const [selectedDoctor, setSelectedDoctor] = useState(null);
@@ -60,10 +64,11 @@ const ConsultationsPage = () => {
 
   const filteredDoctors = useMemo(() => {
     return doctors.filter((d) => {
+      if (currentUser?.type === 'doctor' && Number(d.id) === Number(currentUser?.id)) return false;
       const types = getConsultationTypes(d.formatWork);
       return types.includes(consultationType);
     });
-  }, [doctors, consultationType]);
+  }, [doctors, consultationType, currentUser?.type, currentUser?.id]);
 
   useEffect(() => {
     if (!selectedDoctor?.id || !isBookingModalOpen) return;
@@ -168,7 +173,11 @@ const ConsultationsPage = () => {
     })
       .then(() => {
         const doctorName = selectedDoctor.fullName ?? selectedDoctor.name ?? 'Врач';
-        alert(`Запись успешно оформлена!\nВрач: ${doctorName}\nДата: ${selectedDate}\nВремя: ${selectedTime}\nТип: ${consultationType === 'in-person' ? 'Очная' : 'Онлайн'}\nМы свяжемся с вами для подтверждения.`);
+        openInfo({
+          title: 'Запись оформлена',
+          message: `Запись успешно оформлена!\nВрач: ${doctorName}\nДата: ${selectedDate}\nВремя: ${selectedTime}\nТип: ${consultationType === 'in-person' ? 'Очная' : 'Онлайн'}\nМы свяжемся с вами для подтверждения.`,
+          variant: 'success',
+        });
         setIsBookingModalOpen(false);
         resetBooking();
       })
@@ -588,15 +597,15 @@ const ConsultationsPage = () => {
                   className="modal-next-button"
                   onClick={() => {
                     if (bookingStep === 1 && !selectedDoctor) {
-                      alert('Пожалуйста, выберите врача');
+                      openInfo({ title: 'Выбор врача', message: 'Пожалуйста, выберите врача', variant: 'info' });
                       return;
                     }
                     if (bookingStep === 2 && !selectedDate) {
-                      alert('Пожалуйста, выберите дату');
+                      openInfo({ title: 'Выбор даты', message: 'Пожалуйста, выберите дату', variant: 'info' });
                       return;
                     }
                     if (bookingStep === 3 && !selectedTime) {
-                      alert('Пожалуйста, выберите время');
+                      openInfo({ title: 'Выбор времени', message: 'Пожалуйста, выберите время', variant: 'info' });
                       return;
                     }
                     setBookingStep(bookingStep + 1);

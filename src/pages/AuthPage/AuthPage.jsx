@@ -125,7 +125,6 @@ const AuthPage = () => {
     }
 
     const req = await AuthAPI.changeUnsignedPassword(data.email, data.password);
-    console.log(req);
     if (req.message === 'Пароль успешно изменён') {
       setSubmitting(false);
       setResetPassword(false);

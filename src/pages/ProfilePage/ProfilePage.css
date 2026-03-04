@@ -664,6 +664,325 @@
   transform: translateY(-1px);
 }
 
+/* Модалки быстрых действий врача */
+.quick-action-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+.quick-action-modal-overlay.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.quick-action-modal {
+  background: white;
+  border-radius: 1.25rem;
+  width: 100%;
+  max-width: 640px;
+  max-height: 90vh;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.quick-action-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+  border-bottom: 1px solid #d1fae5;
+}
+
+.quick-action-modal-title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.quick-action-modal-close {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.quick-action-modal-close:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+.quick-action-modal-body {
+  padding: 1.25rem;
+  overflow-y: auto;
+}
+
+.quick-action-search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.quick-action-search-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 0.9375rem;
+  color: #1e293b;
+  outline: none;
+}
+
+.quick-action-loading,
+.profile-loading-msg,
+.profile-empty-msg {
+  padding: 1.5rem;
+  text-align: center;
+  color: #64748b;
+  font-size: 0.9375rem;
+}
+
+.renewal-requests-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.renewal-request-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.renewal-request-info {
+  flex: 1;
+  min-width: 200px;
+}
+
+.renewal-request-patient {
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 0.25rem;
+}
+
+.renewal-request-prescription {
+  font-size: 0.9rem;
+  color: #475569;
+  margin-bottom: 0.25rem;
+}
+
+.renewal-request-status {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.renewal-request-pending .renewal-request-status { color: #d97706; }
+.renewal-request-approved .renewal-request-status { color: #059669; }
+.renewal-request-rejected .renewal-request-status { color: #dc2626; }
+
+.renewal-request-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.renewal-request-btn {
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.renewal-request-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.renewal-request-btn.approve {
+  background: #10b981;
+  color: #fff;
+}
+
+.renewal-request-btn.reject {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+.quick-action-table-wrap {
+  margin-bottom: 1rem;
+}
+
+.quick-action-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.quick-action-table th,
+.quick-action-table td {
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.quick-action-table th {
+  font-weight: 600;
+  color: #475569;
+  background: #f8fafc;
+}
+
+.quick-action-select-btn,
+.quick-action-cancel-visit-btn {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  border: 1px solid #10b981;
+  background: #f0fdf4;
+  color: #059669;
+  transition: all 0.2s ease;
+}
+
+.quick-action-select-btn:hover,
+.quick-action-cancel-visit-btn:hover:not(:disabled) {
+  background: #10b981;
+  color: white;
+}
+
+.quick-action-cancel-visit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.quick-action-empty {
+  padding: 1rem;
+  text-align: center;
+  color: #64748b;
+  font-size: 0.875rem;
+}
+
+.quick-action-pagination {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.quick-action-form .quick-action-form-row {
+  margin-bottom: 1rem;
+}
+
+.quick-action-form .quick-action-form-row label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #334155;
+  margin-bottom: 0.35rem;
+}
+
+.quick-action-form .quick-action-form-row input,
+.quick-action-form .quick-action-form-row textarea {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  font-size: 0.9375rem;
+}
+
+.quick-action-form-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.quick-action-btn-cancel {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.quick-action-btn-cancel:hover {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.quick-action-btn-submit {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  background: #10b981;
+  border: none;
+  color: white;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.quick-action-btn-submit:hover:not(:disabled) {
+  background: #059669;
+}
+
+.quick-action-btn-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.profile-pagination-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
 .profile-content-section {
   display: flex;
   flex-direction: column;
@@ -1143,6 +1462,62 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
   gap: 1rem;
+}
+
+.doctor-patients-loading {
+  grid-column: 1 / -1;
+  padding: 2rem;
+  text-align: center;
+  color: #64748b;
+  font-size: 0.9375rem;
+}
+
+.doctor-patients-pagination {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.doctor-patients-pagination-info {
+  font-size: 0.8125rem;
+  color: #64748b;
+}
+
+.doctor-patients-pagination-buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.doctor-patients-pagination-btn {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  color: #475569;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.doctor-patients-pagination-btn:hover:not(:disabled) {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.doctor-patients-pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.doctor-patients-pagination-page {
+  font-size: 0.8125rem;
+  color: #64748b;
 }
 
 .patient-card {
@@ -2978,20 +3353,53 @@
   color: #475569;
 }
 
-.view-all-activity {
-  padding: 0.75rem;
+/* Пагинация активности системы */
+.activity-pagination {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.activity-pagination-info {
+  font-size: 0.8125rem;
+  color: #64748b;
+}
+
+.activity-pagination-buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.activity-pagination-btn {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
   background: #f1f5f9;
   border: 1px solid #e2e8f0;
   border-radius: 0.5rem;
   color: #475569;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
-  text-align: center;
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
-.view-all-activity:hover {
+.activity-pagination-btn:hover:not(:disabled) {
   background: #e2e8f0;
+  color: #334155;
+}
+
+.activity-pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.activity-pagination-page {
+  font-size: 0.8125rem;
+  color: #64748b;
 }
 
 @media (max-width: 768px) {

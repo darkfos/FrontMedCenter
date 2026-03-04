@@ -51,19 +51,30 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useInfoModal } from '../../context/InfoModalContext';
 import { AuthAPI } from '../../api/auth';
 import { AdminAPI } from '../../api/admin';
+import {
+  downloadCsv,
+  buildUsersReportCsv,
+  buildMedicalReportCsv,
+  buildFinancialReportCsv,
+} from '../../utils/csvReport';
 import './ProfilePage.css';
 
 const ProfilePage = () => {
   const navigate = useNavigate();
   const { currentUser, logout, updateUser, refreshUser } = useAuth();
+  const { openInfo } = useInfoModal();
   const [isEditing, setIsEditing] = useState(false);
   const [userData, setUserData] = useState(() => ({ ...currentUser }));
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [isPatientModalOpen, setIsPatientModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
+  const [cardDataLoading, setCardDataLoading] = useState(false);
+  const [cardPrescriptionSaving, setCardPrescriptionSaving] = useState(false);
+  const [cardAnalysisSaving, setCardAnalysisSaving] = useState(false);
   const [newPrescription, setNewPrescription] = useState({
     medicine: '',
     dosage: '',
@@ -88,8 +99,66 @@ const ProfilePage = () => {
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isResetPasswordsModalOpen, setIsResetPasswordsModalOpen] = useState(false);
+  const [resetPasswordsNew, setResetPasswordsNew] = useState('');
+  const [resetPasswordsConfirm, setResetPasswordsConfirm] = useState('');
+  const [resetPasswordsError, setResetPasswordsError] = useState('');
+  const [resetPasswordsSuccess, setResetPasswordsSuccess] = useState('');
+  const [resetPasswordsSaving, setResetPasswordsSaving] = useState(false);
+  const [showResetNew, setShowResetNew] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [adminActionLoading, setAdminActionLoading] = useState(null);
 
-  // Mock данные для пациентов врача
+  // Пациенты врача (с API, с пагинацией)
+  const [doctorPatientsList, setDoctorPatientsList] = useState([]);
+  const [doctorPatientsTotal, setDoctorPatientsTotal] = useState(0);
+  const [doctorPatientsPage, setDoctorPatientsPage] = useState(1);
+  const [doctorPatientsLoading, setDoctorPatientsLoading] = useState(false);
+  const doctorPatientsPageSize = 10;
+
+  // Визиты на сегодня (для блока «Ближайшие приемы»)
+  const [todayVisitsList, setTodayVisitsList] = useState([]);
+  const [todayVisitsTotal, setTodayVisitsTotal] = useState(0);
+  const [todayVisitsPage, setTodayVisitsPage] = useState(1);
+  const [todayVisitsLoading, setTodayVisitsLoading] = useState(false);
+  const todayVisitsPageSize = 5;
+
+  // Запросы на продление рецептов (для врача)
+  const [doctorRenewalRequests, setDoctorRenewalRequests] = useState([]);
+  const [doctorRenewalRequestsLoading, setDoctorRenewalRequestsLoading] = useState(false);
+  const [renewalRequestUpdatingId, setRenewalRequestUpdatingId] = useState(null);
+
+  // Модалки быстрых действий: выбор пациента / визита и формы
+  const [quickActionType, setQuickActionType] = useState(null); // 'prescription' | 'analysis' | 'cancel'
+  const [modalPatientSearch, setModalPatientSearch] = useState('');
+  const [modalPatientPage, setModalPatientPage] = useState(1);
+  const [modalPatientList, setModalPatientList] = useState([]);
+  const [modalPatientTotal, setModalPatientTotal] = useState(0);
+  const [modalPatientLoading, setModalPatientLoading] = useState(false);
+  const modalPatientPageSize = 8;
+  const [selectedPatientForAction, setSelectedPatientForAction] = useState(null); // { id, fullName, phone }
+  const [prescriptionForm, setPrescriptionForm] = useState({
+    prescriptionName: '',
+    prescriptionDosage: '',
+    prescriptionFrequency: '',
+    prescriptionTime: '',
+    description: '',
+  });
+  const [analysisForm, setAnalysisForm] = useState({
+    type: '',
+    text: '',
+    assignedDate: new Date().toISOString().split('T')[0],
+    costs: '',
+  });
+  const [quickActionSubmitting, setQuickActionSubmitting] = useState(false);
+  // Для модалки «Отменить посещение» — пагинация визитов внутри модалки
+  const [cancelVisitsPage, setCancelVisitsPage] = useState(1);
+  const [cancelVisitsList, setCancelVisitsList] = useState([]);
+  const [cancelVisitsTotal, setCancelVisitsTotal] = useState(0);
+  const [cancelVisitsLoading, setCancelVisitsLoading] = useState(false);
+  const cancelVisitsPageSize = 8;
+
+  // Mock-данные для пациентов врача (если не врач — не используются)
   const [patients, setPatients] = useState([
     {
       id: 1,
@@ -200,25 +269,19 @@ const ProfilePage = () => {
   ]);
 
   const [upcomingAppointments, setUpcomingAppointments] = useState([
-    {
-      id: 1,
-      date: '2024-02-20',
-      time: '10:00',
-      doctor: 'Доктор Иванов',
-      specialty: 'Кардиолог',
-      room: 'Кабинет 205',
-      status: 'confirmed'
-    },
-    {
-      id: 2,
-      date: '2024-02-25',
-      time: '14:30',
-      doctor: 'Доктор Петрова',
-      specialty: 'Невролог',
-      room: 'Кабинет 312',
-      status: 'pending'
-    }
+    { id: 1, date: '2024-02-20', time: '10:00', doctor: 'Доктор Иванов', specialty: 'Кардиолог', room: 'Кабинет 205', status: 'confirmed' },
+    { id: 2, date: '2024-02-25', time: '14:30', doctor: 'Доктор Петрова', specialty: 'Невролог', room: 'Кабинет 312', status: 'pending' }
   ]);
+
+  // Данные пациента с API: записи, назначения, баланс
+  const [patientAppointments, setPatientAppointments] = useState({ list: [], total: 0, page: 1, pageSize: 10 });
+  const [patientAppointmentsLoading, setPatientAppointmentsLoading] = useState(false);
+  const [patientPrescriptions, setPatientPrescriptions] = useState({ list: [], total: 0, page: 1, pageSize: 10 });
+  const [patientPrescriptionsLoading, setPatientPrescriptionsLoading] = useState(false);
+  const [patientBalance, setPatientBalance] = useState(0);
+  const [patientBalanceLoading, setPatientBalanceLoading] = useState(false);
+  const [prescriptionRenewalRequests, setPrescriptionRenewalRequests] = useState([]);
+  const [renewRequestSending, setRenewRequestSending] = useState(null);
 
   // Данные для медсестры
   const [nurseTasks, setNurseTasks] = useState([
@@ -283,19 +346,228 @@ const ProfilePage = () => {
 
   const [recentActivity, setRecentActivity] = useState([]);
   const [activityLoading, setActivityLoading] = useState(false);
-  const [activityShowAll, setActivityShowAll] = useState(false);
   const [activityRefresh, setActivityRefresh] = useState(0);
+  const [activityPage, setActivityPage] = useState(1);
+  const [activityTotal, setActivityTotal] = useState(0);
+  const activityPageSize = 10;
 
   // При каждом переходе на страницу профиля — запрос /info; при 401 interceptor сбросит storage и редирект на /auth
   useEffect(() => {
     refreshUser().catch(() => {});
   }, []);
 
+  // Загрузка записей (визитов) пациента
+  useEffect(() => {
+    if (currentUser?.type !== 'patient') return;
+    let cancelled = false;
+    setPatientAppointmentsLoading(true);
+    AuthAPI.getMyAppointments(patientAppointments.page, patientAppointments.pageSize)
+      .then((res) => {
+        if (cancelled) return;
+        const list = (res?.list ?? []).map((v) => {
+          const doctor = v.pacient?.doctor ?? {};
+          const clinicType = doctor.clinicType ?? {};
+          return {
+            id: v.id,
+            date: typeof v.dateVisit === 'string' ? v.dateVisit.slice(0, 10) : (v.dateVisit?.toISOString?.()?.slice(0, 10) ?? ''),
+            time: v.time ?? '',
+            doctor: doctor.fullName ?? 'Врач',
+            specialty: clinicType.name ?? doctor.position ?? '—',
+            room: v.roomNumber ?? '—',
+            status: v.appointmentStatus === 'confirmed' ? 'confirmed' : v.appointmentStatus === 'cancelled' ? 'cancelled' : 'pending',
+          };
+        });
+        setPatientAppointments((prev) => ({ ...prev, list, total: res?.total ?? 0, page: res?.page ?? 1, pageSize: res?.pageSize ?? 10 }));
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setPatientAppointmentsLoading(false); });
+    return () => { cancelled = true; };
+  }, [currentUser?.type, patientAppointments.page, patientAppointments.pageSize]);
+
+  // Загрузка истории назначений (препаратов) пациента
+  useEffect(() => {
+    if (currentUser?.type !== 'patient') return;
+    let cancelled = false;
+    setPatientPrescriptionsLoading(true);
+    AuthAPI.getMyPrescriptions(patientPrescriptions.page, patientPrescriptions.pageSize)
+      .then((res) => {
+        if (cancelled) return;
+        setPatientPrescriptions((prev) => ({
+          ...prev,
+          list: res?.list ?? [],
+          total: res?.total ?? 0,
+          page: res?.page ?? 1,
+          pageSize: res?.pageSize ?? 10,
+        }));
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setPatientPrescriptionsLoading(false); });
+    return () => { cancelled = true; };
+  }, [currentUser?.type, patientPrescriptions.page, patientPrescriptions.pageSize]);
+
+  // Загрузка баланса пациента
+  useEffect(() => {
+    if (currentUser?.type !== 'patient') return;
+    let cancelled = false;
+    setPatientBalanceLoading(true);
+    AuthAPI.getMyBalance()
+      .then((res) => { if (!cancelled) setPatientBalance(res?.balance ?? 0); })
+      .catch(() => { if (!cancelled) setPatientBalance(0); })
+      .finally(() => { if (!cancelled) setPatientBalanceLoading(false); });
+    return () => { cancelled = true; };
+  }, [currentUser?.type]);
+
+  // Загрузка запросов на продление рецептов (для отображения статуса)
+  useEffect(() => {
+    if (currentUser?.type !== 'patient') return;
+    AuthAPI.getMyPrescriptionRenewalRequests()
+      .then((res) => setPrescriptionRenewalRequests(res?.list ?? []))
+      .catch(() => setPrescriptionRenewalRequests([]));
+  }, [currentUser?.type]);
+
   useEffect(() => {
     if (currentUser) {
-      setUserData({ ...currentUser });
+      setUserData({
+        ...currentUser,
+        certificate: currentUser.certificates?.[0] ?? currentUser.license ?? '',
+      });
     }
   }, [currentUser]);
+
+  // Загрузка пациентов врача (с пагинацией)
+  useEffect(() => {
+    if (currentUser?.type !== 'doctor') return;
+    let cancelled = false;
+    setDoctorPatientsLoading(true);
+    AuthAPI.getMyPatients(doctorPatientsPage, doctorPatientsPageSize)
+      .then((res) => {
+        if (cancelled) return;
+        const list = res?.list ?? [];
+        const mapped = list.map((item) => {
+          const parts = (item.fullName || '').trim().split(/\s+/);
+          return {
+            id: item.id,
+            firstName: parts[0] || '',
+            lastName: parts.slice(1).join(' ') || '',
+            fullName: item.fullName || '',
+            phone: item.phone || '',
+            lastVisit: item.lastVisit || '',
+            nextAppointment: item.nextAppointment || '',
+            complaints: item.description || '',
+            medicalHistory: [],
+            prescriptions: Array(Math.max(0, item.prescriptionsCount || 0)).fill({}),
+            testResults: [],
+            attendance: [],
+            status: 'active',
+          };
+        });
+        setDoctorPatientsList(mapped);
+        setDoctorPatientsTotal(res?.total ?? 0);
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setDoctorPatientsLoading(false); });
+    return () => { cancelled = true; };
+  }, [currentUser?.type, doctorPatientsPage, doctorPatientsPageSize]);
+
+  // Загрузка визитов на сегодня (для врача)
+  useEffect(() => {
+    if (currentUser?.type !== 'doctor') return;
+    let cancelled = false;
+    setTodayVisitsLoading(true);
+    AuthAPI.getMyVisitsToday(todayVisitsPage, todayVisitsPageSize)
+      .then((res) => {
+        if (cancelled) return;
+        setTodayVisitsList(res?.list ?? []);
+        setTodayVisitsTotal(res?.total ?? 0);
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setTodayVisitsLoading(false); });
+    return () => { cancelled = true; };
+  }, [currentUser?.type, todayVisitsPage, todayVisitsPageSize]);
+
+  // Загрузка запросов на продление рецептов (для врача)
+  useEffect(() => {
+    if (currentUser?.type !== 'doctor') return;
+    let cancelled = false;
+    setDoctorRenewalRequestsLoading(true);
+    AuthAPI.getMyRenewalRequests()
+      .then((res) => {
+        if (cancelled) return;
+        setDoctorRenewalRequests(res?.list ?? []);
+      })
+      .catch(() => { if (!cancelled) setDoctorRenewalRequests([]); })
+      .finally(() => { if (!cancelled) setDoctorRenewalRequestsLoading(false); });
+    return () => { cancelled = true; };
+  }, [currentUser?.type]);
+
+  // Загрузка назначений и анализов при открытии карточки пациента (врач)
+  useEffect(() => {
+    if (currentUser?.type !== 'doctor' || !selectedPatient?.id || !isPatientModalOpen) return;
+    let cancelled = false;
+    setCardDataLoading(true);
+    const cardId = selectedPatient.id;
+    Promise.all([
+      AuthAPI.getCardPrescriptions(cardId),
+      AuthAPI.getCardAnalyses(cardId),
+    ])
+      .then(([presRes, analRes]) => {
+        if (cancelled) return;
+        const prescriptions = (presRes?.list ?? []).map((p) => ({
+          id: p.id,
+          medicine: p.prescriptionName ?? '',
+          dosage: p.prescriptionDosage ?? '',
+          frequency: p.prescriptionFrequency ?? '',
+          duration: p.prescriptionTime ?? '',
+          notes: p.description ?? '',
+          date: p.createdAt ?? '',
+          doctor: p.doctorName ?? '',
+        }));
+        const testResults = (analRes?.list ?? []).map((a) => ({
+          id: a.id,
+          type: a.type ?? '',
+          result: a.text ?? '',
+          date: (a.assignedDate || '').slice(0, 10),
+          lab: '',
+          notes: '',
+        }));
+        setSelectedPatient((prev) => (prev && prev.id === cardId ? { ...prev, prescriptions, testResults } : prev));
+      })
+      .catch(() => { if (!cancelled) setSelectedPatient((prev) => prev ? { ...prev, prescriptions: [], testResults: [] } : prev); })
+      .finally(() => { if (!cancelled) setCardDataLoading(false); });
+    return () => { cancelled = true; };
+  }, [currentUser?.type, selectedPatient?.id, isPatientModalOpen]);
+
+  // Загрузка списка пациентов в модалке выбора (для назначение/анализы)
+  useEffect(() => {
+    if (currentUser?.type !== 'doctor' || (quickActionType !== 'prescription' && quickActionType !== 'analysis')) return;
+    let cancelled = false;
+    setModalPatientLoading(true);
+    AuthAPI.getMyPatients(modalPatientPage, modalPatientPageSize, modalPatientSearch)
+      .then((res) => {
+        if (cancelled) return;
+        setModalPatientList(res?.list ?? []);
+        setModalPatientTotal(res?.total ?? 0);
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setModalPatientLoading(false); });
+    return () => { cancelled = true; };
+  }, [currentUser?.type, quickActionType, modalPatientPage, modalPatientPageSize, modalPatientSearch]);
+
+  // Загрузка визитов в модалке «Отменить посещение»
+  useEffect(() => {
+    if (currentUser?.type !== 'doctor' || quickActionType !== 'cancel') return;
+    let cancelled = false;
+    setCancelVisitsLoading(true);
+    AuthAPI.getMyVisitsToday(cancelVisitsPage, cancelVisitsPageSize)
+      .then((res) => {
+        if (cancelled) return;
+        setCancelVisitsList(res?.list ?? []);
+        setCancelVisitsTotal(res?.total ?? 0);
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setCancelVisitsLoading(false); });
+    return () => { cancelled = true; };
+  }, [currentUser?.type, quickActionType, cancelVisitsPage, cancelVisitsPageSize]);
 
   // Загрузка статистики и запросов на утверждение для администратора
   useEffect(() => {
@@ -342,32 +614,30 @@ const ProfilePage = () => {
     return () => { cancelled = true; };
   }, [currentUser?.isAdmin, pendingPage, pendingRefresh]);
 
-  // Загрузка активности системы для администратора
+  // Загрузка активности системы для администратора (с пагинацией)
   useEffect(() => {
     if (!currentUser?.isAdmin) return;
     let cancelled = false;
     setActivityLoading(true);
-    const fetchActivity = activityShowAll
-      ? AdminAPI.getActivitiesPage(1, 50).then((res) => res.list ?? [])
-      : AdminAPI.getActivities(10);
-    fetchActivity
-      .then((list) => {
-        if (!cancelled) {
-          const items = Array.isArray(list)
-            ? list.map((a) => ({
-                id: a.id,
-                action: a.eventType,
-                user: a.user ?? 'Система',
-                time: a.time ?? ''
-              }))
-            : [];
-          setRecentActivity(items);
-        }
+    AdminAPI.getActivitiesPage(activityPage, activityPageSize)
+      .then((res) => {
+        if (cancelled) return;
+        const list = res?.list ?? [];
+        const items = Array.isArray(list)
+          ? list.map((a) => ({
+              id: a.id,
+              action: a.eventType,
+              user: a.user ?? 'Система',
+              time: a.time ?? ''
+            }))
+          : [];
+        setRecentActivity(items);
+        setActivityTotal(res?.total ?? 0);
       })
       .catch(() => {})
       .finally(() => { if (!cancelled) setActivityLoading(false); });
     return () => { cancelled = true; };
-  }, [currentUser?.isAdmin, activityShowAll, activityRefresh]);
+  }, [currentUser?.isAdmin, activityPage, activityPageSize, activityRefresh]);
 
   if (!currentUser) {
     navigate('/auth');
@@ -383,15 +653,20 @@ const ProfilePage = () => {
     setProfileSaveError('');
     setProfileSaving(true);
     const fullName = [userData.firstName, userData.lastName].filter(Boolean).join(' ').trim();
+    const certificates = userData.certificate != null && String(userData.certificate).trim()
+      ? [String(userData.certificate).trim()]
+      : (currentUser.certificates ?? []);
     try {
       await AuthAPI.updateProfile({
         fullName: fullName || undefined,
         email: userData.email || undefined,
         phone: userData.phone || undefined,
         policyNumber: userData.policyNumber ?? currentUser.policyNumber ?? undefined,
+        certificates: certificates,
+        position: userData.position ?? currentUser.position ?? undefined,
       });
       const fresh = await refreshUser();
-      setUserData((prev) => ({ ...prev, ...fresh }));
+      setUserData((prev) => ({ ...prev, ...fresh, certificate: fresh?.certificates?.[0] ?? fresh?.license ?? prev.certificate }));
       setIsEditing(false);
     } catch (err) {
       const msg = err?.response?.data?.message ?? err?.response?.data?.detail ?? err?.message ?? 'Не удалось сохранить данные';
@@ -512,73 +787,67 @@ const ProfilePage = () => {
     });
   };
 
-  const addPrescription = () => {
-    if (!newPrescription.medicine || !newPrescription.dosage) return;
-
-    const prescription = {
-      id: Date.now(),
-      ...newPrescription,
-      date: new Date().toISOString().split('T')[0],
-      doctor: `${currentUser.firstName} ${currentUser.lastName}`
-    };
-
-    setPatients(prevPatients =>
-      prevPatients.map(patient =>
-        patient.id === selectedPatient.id
-          ? {
-              ...patient,
-              prescriptions: [...patient.prescriptions, prescription]
-            }
-          : patient
-      )
-    );
-
-    setSelectedPatient(prev => ({
-      ...prev,
-      prescriptions: [...prev.prescriptions, prescription]
-    }));
-
-    setNewPrescription({
-      medicine: '',
-      dosage: '',
-      frequency: '',
-      duration: '',
-      notes: ''
-    });
+  const addPrescription = async () => {
+    if (!selectedPatient?.id || !newPrescription.medicine || !newPrescription.dosage) return;
+    setCardPrescriptionSaving(true);
+    try {
+      await AuthAPI.createPrescription({
+        pacientId: selectedPatient.id,
+        prescriptionName: newPrescription.medicine,
+        prescriptionDosage: newPrescription.dosage,
+        prescriptionFrequency: newPrescription.frequency || '',
+        prescriptionTime: newPrescription.duration || '',
+        description: newPrescription.notes || '',
+      });
+      openInfo({ title: 'Готово', message: 'Назначение добавлено.', variant: 'success' });
+      setNewPrescription({ medicine: '', dosage: '', frequency: '', duration: '', notes: '' });
+      const res = await AuthAPI.getCardPrescriptions(selectedPatient.id);
+      const prescriptions = (res?.list ?? []).map((p) => ({
+        id: p.id,
+        medicine: p.prescriptionName ?? '',
+        dosage: p.prescriptionDosage ?? '',
+        frequency: p.prescriptionFrequency ?? '',
+        duration: p.prescriptionTime ?? '',
+        notes: p.description ?? '',
+        date: p.createdAt ?? '',
+        doctor: p.doctorName ?? '',
+      }));
+      setSelectedPatient((prev) => (prev ? { ...prev, prescriptions } : prev));
+    } catch (e) {
+      openInfo({ title: 'Ошибка', message: e?.response?.data?.message || 'Не удалось добавить назначение.', variant: 'error' });
+    } finally {
+      setCardPrescriptionSaving(false);
+    }
   };
 
-  const addTestResult = () => {
-    if (!newTest.type || !newTest.result) return;
-
-    const test = {
-      id: Date.now(),
-      ...newTest,
-      date: new Date().toISOString().split('T')[0]
-    };
-
-    setPatients(prevPatients =>
-      prevPatients.map(patient =>
-        patient.id === selectedPatient.id
-          ? {
-              ...patient,
-              testResults: [...patient.testResults, test]
-            }
-          : patient
-      )
-    );
-
-    setSelectedPatient(prev => ({
-      ...prev,
-      testResults: [...prev.testResults, test]
-    }));
-
-    setNewTest({
-      type: '',
-      result: '',
-      date: new Date().toISOString().split('T')[0],
-      lab: '',
-      notes: ''
-    });
+  const addTestResult = async () => {
+    if (!selectedPatient?.id || !newTest.type || !newTest.result) return;
+    setCardAnalysisSaving(true);
+    try {
+      await AuthAPI.createAnalysis({
+        pacientId: selectedPatient.id,
+        type: newTest.type,
+        text: newTest.result,
+        assignedDate: newTest.date || new Date().toISOString().split('T')[0],
+        costs: newTest.costs ? parseFloat(newTest.costs) : undefined,
+      });
+      openInfo({ title: 'Готово', message: 'Результат анализа добавлен.', variant: 'success' });
+      setNewTest({ type: '', result: '', date: new Date().toISOString().split('T')[0], lab: '', notes: '', costs: '' });
+      const res = await AuthAPI.getCardAnalyses(selectedPatient.id);
+      const testResults = (res?.list ?? []).map((a) => ({
+        id: a.id,
+        type: a.type ?? '',
+        result: a.text ?? '',
+        date: (a.assignedDate || '').slice(0, 10),
+        lab: '',
+        notes: '',
+      }));
+      setSelectedPatient((prev) => (prev ? { ...prev, testResults } : prev));
+    } catch (e) {
+      openInfo({ title: 'Ошибка', message: e?.response?.data?.message || 'Не удалось добавить анализ.', variant: 'error' });
+    } finally {
+      setCardAnalysisSaving(false);
+    }
   };
 
   const toggleAttendance = (date, currentStatus) => {
@@ -605,9 +874,10 @@ const ProfilePage = () => {
     }));
   };
 
-  const filteredPatients = patients.filter(patient =>
-    `${patient.firstName} ${patient.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    patient.phone.includes(searchTerm)
+  const patientsSource = currentUser?.type === 'doctor' ? doctorPatientsList : patients;
+  const filteredPatients = patientsSource.filter(patient =>
+    `${patient.firstName || ''} ${patient.lastName || ''}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (patient.phone || '').includes(searchTerm)
   );
 
   // Функционал для пациента
@@ -620,21 +890,90 @@ const ProfilePage = () => {
   const rescheduleAppointment = (id) => {
     const appointment = upcomingAppointments.find(a => a.id === id);
     if (appointment) {
-      alert(`Перенос записи к ${appointment.doctor}`);
+      openInfo({ title: 'Перенос записи', message: `Перенос записи к ${appointment.doctor}`, variant: 'info' });
     }
+  };
+
+  /** Скачать CSV по назначению (препарату). */
+  const downloadPrescriptionCsv = (prescription) => {
+    const rows = [
+      ['Тип', 'Назначение (препарат)'],
+      ['Препарат', prescription.prescriptionName ?? ''],
+      ['Дозировка', prescription.prescriptionDosage ?? ''],
+      ['Частота приёма', prescription.prescriptionFrequency ?? ''],
+      ['Время приёма', prescription.prescriptionTime ?? ''],
+      ['Описание', prescription.description ?? ''],
+      ['Врач', prescription.doctorName ?? ''],
+      ['Специальность', prescription.doctorSpecialty ?? ''],
+    ];
+    const csv = '\uFEFF' + rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `назначение_${prescription.prescriptionName ?? prescription.id}_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    openInfo({ title: 'Скачивание', message: 'Файл CSV сохранён.', variant: 'success' });
+  };
+
+  /** Распечатать / сохранить CSV отчёт по назначению. */
+  const printPrescriptionCsv = (prescription) => {
+    const rows = [
+      ['Тип', 'Назначение (препарат)'],
+      ['Препарат', prescription.prescriptionName ?? ''],
+      ['Дозировка', prescription.prescriptionDosage ?? ''],
+      ['Частота приёма', prescription.prescriptionFrequency ?? ''],
+      ['Время приёма', prescription.prescriptionTime ?? ''],
+      ['Описание', prescription.description ?? ''],
+      ['Врач', prescription.doctorName ?? ''],
+      ['Специальность', prescription.doctorSpecialty ?? ''],
+    ];
+    const csv = '\uFEFF' + rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const w = window.open(url, '_blank');
+    if (w) w.document.title = `Назначение_${prescription.prescriptionName ?? prescription.id}`;
+    else {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `отчет_назначение_${prescription.id}.csv`;
+      a.click();
+    }
+    URL.revokeObjectURL(url);
+    openInfo({ title: 'Отчёт', message: 'Открыт отчёт в новой вкладке или сохранён как CSV.', variant: 'success' });
+  };
+
+  /** Запрос на продление рецепта (API). */
+  const requestPrescriptionRenewal = (prescriptionId) => {
+    const pending = prescriptionRenewalRequests.some(
+      (r) => (r.prescription?.id ?? r.prescriptionId) === prescriptionId && (r.status === 'pending' || r.status === 'approved')
+    );
+    if (pending) {
+      openInfo({ title: 'Продление рецепта', message: 'Запрос уже отправлен или одобрен.', variant: 'info' });
+      return;
+    }
+    setRenewRequestSending(prescriptionId);
+    AuthAPI.createPrescriptionRenewalRequest(prescriptionId)
+      .then(() => {
+        openInfo({ title: 'Запрос отправлен', message: 'Запрос на продление рецепта отправлен врачу. Ожидайте решения.', variant: 'success' });
+        return AuthAPI.getMyPrescriptionRenewalRequests();
+      })
+      .then((res) => setPrescriptionRenewalRequests(res?.list ?? []))
+      .catch((err) => {
+        openInfo({
+          title: 'Ошибка',
+          message: err?.response?.data?.message ?? 'Не удалось отправить запрос на продление.',
+          variant: 'error',
+        });
+      })
+      .finally(() => setRenewRequestSending(null));
   };
 
   const downloadMedicalRecord = (id) => {
     const record = patientRecords.find(r => r.id === id);
     if (record) {
-      alert(`Скачивание записи от ${record.date}`);
-    }
-  };
-
-  const requestPrescriptionRenewal = (id) => {
-    const record = patientRecords.find(r => r.id === id);
-    if (record) {
-      alert(`Запрос на продление рецепта: ${record.prescription}`);
+      openInfo({ title: 'Скачивание', message: `Скачивание записи от ${record.date}`, variant: 'info' });
     }
   };
 
@@ -664,7 +1003,7 @@ const ProfilePage = () => {
   };
 
   const requestSupply = (item) => {
-    alert(`Запрос на пополнение: ${item}`);
+    openInfo({ title: 'Запрос на пополнение', message: `Запрос на пополнение: ${item}`, variant: 'info' });
   };
 
   // Функционал для администратора: утверждение/отклонение регистрации
@@ -673,6 +1012,7 @@ const ProfilePage = () => {
     try {
       await AdminAPI.approveUser(id);
       setPendingRefresh((r) => r + 1);
+      setActivityPage(1);
       setActivityRefresh((r) => r + 1);
       AdminAPI.getStats().then((data) => {
         setSystemStats({
@@ -697,6 +1037,7 @@ const ProfilePage = () => {
     try {
       await AdminAPI.rejectUser(id);
       setPendingRefresh((r) => r + 1);
+      setActivityPage(1);
       setActivityRefresh((r) => r + 1);
     } catch (_e) {
       // ошибка уже обработана interceptor'ом
@@ -705,32 +1046,151 @@ const ProfilePage = () => {
     }
   };
 
-  const generateReport = (type) => {
-    alert(`Генерация отчета: ${type}`);
+  const generateReport = async (type) => {
+    const key = `report-${type}`;
+    setAdminActionLoading(key);
+    try {
+      const result = await AdminAPI.getReport(type);
+      const data = result?.data ?? {};
+      const dateStr = result?.generatedAt
+        ? new Date(result.generatedAt).toISOString().slice(0, 10)
+        : new Date().toISOString().slice(0, 10);
+      let csvString;
+      let filename;
+      if (type === 'users') {
+        csvString = buildUsersReportCsv(data);
+        filename = `otchet-polzovateli-${dateStr}.csv`;
+      } else if (type === 'medical') {
+        csvString = buildMedicalReportCsv(data);
+        filename = `meditsinskiy-otchet-${dateStr}.csv`;
+      } else {
+        csvString = buildFinancialReportCsv(data);
+        filename = `finansovyy-otchet-${dateStr}.csv`;
+      }
+      downloadCsv(filename, csvString);
+      setActivityPage(1);
+      setActivityRefresh((r) => r + 1);
+    } catch (err) {
+      const msg = err?.response?.data?.message ?? err?.message ?? 'Не удалось сформировать отчёт';
+      openInfo({ title: 'Ошибка', message: typeof msg === 'string' ? msg : 'Ошибка формирования отчёта', variant: 'error' });
+    } finally {
+      setAdminActionLoading(null);
+    }
   };
 
-  const backupSystem = () => {
-    alert('Запуск резервного копирования системы...');
+  const backupSystem = async () => {
+    setAdminActionLoading('backup');
+    try {
+      const result = await AdminAPI.backup();
+      openInfo({ title: 'Резервная копия', message: result?.message ?? 'Резервная копия запущена.', variant: 'success' });
+      setActivityPage(1);
+      setActivityRefresh((r) => r + 1);
+    } catch (err) {
+      const msg = err?.response?.data?.message ?? err?.message ?? 'Ошибка запуска резервного копирования';
+      openInfo({ title: 'Ошибка', message: typeof msg === 'string' ? msg : 'Ошибка', variant: 'error' });
+    } finally {
+      setAdminActionLoading(null);
+    }
   };
 
-  const clearCache = () => {
-    alert('Очистка кэша системы...');
+  const clearCache = async () => {
+    setAdminActionLoading('cache');
+    try {
+      const result = await AdminAPI.clearCache();
+      openInfo({ title: 'Очистка кэша', message: result?.message ?? 'Кэш очищен.', variant: 'success' });
+      setActivityPage(1);
+      setActivityRefresh((r) => r + 1);
+    } catch (err) {
+      const msg = err?.response?.data?.message ?? err?.message ?? 'Ошибка очистки кэша';
+      openInfo({ title: 'Ошибка', message: typeof msg === 'string' ? msg : 'Ошибка', variant: 'error' });
+    } finally {
+      setAdminActionLoading(null);
+    }
   };
 
-  const PatientCardModal = () => {
-    if (!selectedPatient) return null;
+  const checkSecurity = async () => {
+    setAdminActionLoading('security');
+    try {
+      const result = await AdminAPI.checkSecurity();
+      if (result?.ok) {
+        openInfo({ title: 'Безопасность', message: 'Проверка безопасности пройдена. Замечаний нет.', variant: 'success' });
+      } else {
+        const issues = result?.issues?.length ? result.issues.join('\n') : 'Обнаружены замечания';
+        openInfo({ title: 'Проверка безопасности', message: issues, variant: 'info' });
+      }
+      setActivityPage(1);
+      setActivityRefresh((r) => r + 1);
+    } catch (err) {
+      const msg = err?.response?.data?.message ?? err?.message ?? 'Ошибка проверки безопасности';
+      openInfo({ title: 'Ошибка', message: typeof msg === 'string' ? msg : 'Ошибка', variant: 'error' });
+    } finally {
+      setAdminActionLoading(null);
+    }
+  };
 
-    return (
+  const openResetPasswordsModal = () => {
+    setResetPasswordsNew('');
+    setResetPasswordsConfirm('');
+    setResetPasswordsError('');
+    setResetPasswordsSuccess('');
+    setShowResetNew(false);
+    setShowResetConfirm(false);
+    setIsResetPasswordsModalOpen(true);
+  };
+
+  const closeResetPasswordsModal = () => {
+    setIsResetPasswordsModalOpen(false);
+    setResetPasswordsNew('');
+    setResetPasswordsConfirm('');
+    setResetPasswordsError('');
+    setResetPasswordsSuccess('');
+  };
+
+  const handleResetDoctorsPassword = async (e) => {
+    e.preventDefault();
+    setResetPasswordsError('');
+    setResetPasswordsSuccess('');
+    const pwd = resetPasswordsNew.trim();
+    const conf = resetPasswordsConfirm.trim();
+    if (pwd.length < 6) {
+      setResetPasswordsError('Пароль должен быть не менее 6 символов');
+      return;
+    }
+    if (pwd !== conf) {
+      setResetPasswordsError('Пароли не совпадают');
+      return;
+    }
+    setResetPasswordsSaving(true);
+    try {
+      const result = await AdminAPI.resetDoctorsPassword(pwd);
+      setResetPasswordsSuccess(result?.message ?? `Пароль установлен для ${result?.updated ?? 0} врачей.`);
+      setResetPasswordsNew('');
+      setResetPasswordsConfirm('');
+      setActivityPage(1);
+      setActivityRefresh((r) => r + 1);
+      setTimeout(() => closeResetPasswordsModal(), 2000);
+    } catch (err) {
+      const msg = err?.response?.data?.message ?? err?.message ?? 'Не удалось сбросить пароли';
+      setResetPasswordsError(typeof msg === 'string' ? msg : 'Ошибка сброса паролей');
+    } finally {
+      setResetPasswordsSaving(false);
+    }
+  };
+
+  const openNotificationSettings = () => {
+    openInfo({ title: 'Настройки уведомлений', message: 'Функция в разработке.', variant: 'info' });
+  };
+
+  const patientCardModalContent = selectedPatient && (
       <div className={`patient-modal-overlay ${isPatientModalOpen ? 'active' : ''}`}>
         <div className="patient-modal">
           <div className="patient-modal-header">
             <div>
               <h3 className="patient-modal-title">
-                Карточка пациента: {selectedPatient.firstName} {selectedPatient.lastName}
+                Карточка пациента: {selectedPatient.fullName || `${selectedPatient.firstName || ''} ${selectedPatient.lastName || ''}`.trim() || 'Пациент'}
               </h3>
               <div className="patient-modal-subtitle">
-                <span>Возраст: {selectedPatient.age} лет</span>
-                <span>Телефон: {selectedPatient.phone}</span>
+                <span>Телефон: {selectedPatient.phone || '—'}</span>
                 <span className={`patient-status patient-status-${selectedPatient.status}`}>
                   {selectedPatient.status === 'active' ? 'Активный' : 'Неактивный'}
                 </span>
@@ -779,9 +1239,9 @@ const ProfilePage = () => {
                   
                   <div className="patient-section">
                     <h4>История болезни</h4>
-                    {selectedPatient.medicalHistory.length > 0 ? (
-                      selectedPatient.medicalHistory.map(record => (
-                        <div key={record.id} className="medical-history-item">
+                    {(selectedPatient.medicalHistory ?? []).length > 0 ? (
+                      (selectedPatient.medicalHistory ?? []).map((record, idx) => (
+                        <div key={record.id ?? idx} className="medical-history-item">
                           <div className="medical-history-date">{record.date}</div>
                           <div className="medical-history-diagnosis">{record.diagnosis}</div>
                           <div className="medical-history-doctor">{record.doctor}</div>
@@ -797,11 +1257,11 @@ const ProfilePage = () => {
                   
                   <div className="patient-section">
                     <h4>Предыдущие назначения других врачей</h4>
-                    {selectedPatient.prescriptions.filter(p => p.doctor !== `${currentUser.firstName} ${currentUser.lastName}`).length > 0 ? (
-                      selectedPatient.prescriptions
-                        .filter(p => p.doctor !== `${currentUser.firstName} ${currentUser.lastName}`)
-                        .map(prescription => (
-                          <div key={prescription.id} className="other-prescription">
+                    {(selectedPatient.prescriptions ?? []).filter(p => p && p.doctor !== `${currentUser?.firstName || ''} ${currentUser?.lastName || ''}`.trim()).length > 0 ? (
+                      (selectedPatient.prescriptions ?? [])
+                        .filter(p => p && p.doctor !== `${currentUser?.firstName || ''} ${currentUser?.lastName || ''}`.trim())
+                        .map((prescription, idx) => (
+                          <div key={prescription.id ?? idx} className="other-prescription">
                             <div className="prescription-header">
                               <strong>{prescription.medicine}</strong>
                               <span>{prescription.doctor}</span>
@@ -825,9 +1285,11 @@ const ProfilePage = () => {
                 <div className="patient-prescriptions">
                   <div className="prescriptions-list">
                     <h4>Текущие назначения</h4>
-                    {selectedPatient.prescriptions.length > 0 ? (
-                      selectedPatient.prescriptions.map(prescription => (
-                        <div key={prescription.id} className="prescription-item">
+                    {cardDataLoading ? (
+                      <p className="profile-loading-msg">Загрузка…</p>
+                    ) : (selectedPatient.prescriptions ?? []).length > 0 ? (
+                      (selectedPatient.prescriptions ?? []).map((prescription, idx) => (
+                        <div key={prescription.id ?? idx} className="prescription-item">
                           <div className="prescription-header">
                             <strong>{prescription.medicine}</strong>
                             <span>{prescription.date}</span>
@@ -885,9 +1347,9 @@ const ProfilePage = () => {
                         onChange={(e) => setNewPrescription({...newPrescription, notes: e.target.value})}
                         className="prescription-textarea"
                       />
-                      <button onClick={addPrescription} className="add-button">
+                      <button type="button" onClick={addPrescription} className="add-button" disabled={cardPrescriptionSaving}>
                         <Plus size={16} />
-                        Добавить назначение
+                        {cardPrescriptionSaving ? 'Сохранение…' : 'Добавить назначение'}
                       </button>
                     </div>
                   </div>
@@ -898,9 +1360,11 @@ const ProfilePage = () => {
                 <div className="patient-tests">
                   <div className="tests-list">
                     <h4>Результаты анализов</h4>
-                    {selectedPatient.testResults.length > 0 ? (
-                      selectedPatient.testResults.map(test => (
-                        <div key={test.id} className="test-item">
+                    {cardDataLoading ? (
+                      <p className="profile-loading-msg">Загрузка…</p>
+                    ) : (selectedPatient.testResults ?? []).length > 0 ? (
+                      (selectedPatient.testResults ?? []).map((test, idx) => (
+                        <div key={test.id ?? idx} className="test-item">
                           <div className="test-header">
                             <strong>{test.type}</strong>
                             <span>{test.date}</span>
@@ -957,9 +1421,9 @@ const ProfilePage = () => {
                         onChange={(e) => setNewTest({...newTest, notes: e.target.value})}
                         className="test-textarea"
                       />
-                      <button onClick={addTestResult} className="add-button">
+                      <button type="button" onClick={addTestResult} className="add-button" disabled={cardAnalysisSaving}>
                         <Plus size={16} />
-                        Добавить результат
+                        {cardAnalysisSaving ? 'Сохранение…' : 'Добавить результат'}
                       </button>
                     </div>
                   </div>
@@ -971,19 +1435,19 @@ const ProfilePage = () => {
                   <div className="attendance-stats">
                     <div className="stat-card">
                       <div className="stat-value">
-                        {selectedPatient.attendance.filter(a => a.status === 'attended').length}
+                        {(selectedPatient.attendance ?? []).filter(a => a && a.status === 'attended').length}
                       </div>
                       <div className="stat-label">Посещений</div>
                     </div>
                     <div className="stat-card">
                       <div className="stat-value">
-                        {selectedPatient.attendance.filter(a => a.status === 'missed').length}
+                        {(selectedPatient.attendance ?? []).filter(a => a && a.status === 'missed').length}
                       </div>
                       <div className="stat-label">Пропусков</div>
                     </div>
                     <div className="stat-card">
                       <div className="stat-value">
-                        {selectedPatient.attendance.filter(a => a.status === 'cancelled').length}
+                        {(selectedPatient.attendance ?? []).filter(a => a && a.status === 'cancelled').length}
                       </div>
                       <div className="stat-label">Отмен</div>
                     </div>
@@ -991,8 +1455,8 @@ const ProfilePage = () => {
 
                   <div className="attendance-list">
                     <h4>История посещений</h4>
-                    {selectedPatient.attendance.length > 0 ? (
-                      selectedPatient.attendance.map((record, index) => (
+                    {(selectedPatient.attendance ?? []).length > 0 ? (
+                      (selectedPatient.attendance ?? []).map((record, index) => (
                         <div key={index} className="attendance-item">
                           <div className="attendance-date">{record.date}</div>
                           <div className={`attendance-status attendance-status-${record.status}`}>
@@ -1060,8 +1524,7 @@ const ProfilePage = () => {
           </div>
         </div>
       </div>
-    );
-  };
+  );
 
   // Рендер панели пациента
   const renderPatientPanel = () => (
@@ -1079,103 +1542,166 @@ const ProfilePage = () => {
         </div>
         
         <div className="appointments-list">
-          {upcomingAppointments.map(appointment => (
-            <div key={appointment.id} className="appointment-card">
-              <div className="appointment-header">
-                <div className="appointment-date-badge">
-                  <div className="appointment-day">{new Date(appointment.date).getDate()}</div>
-                  <div className="appointment-month">
-                    {new Date(appointment.date).toLocaleString('ru-RU', { month: 'short' })}
+          {patientAppointmentsLoading && patientAppointments.list.length === 0 ? (
+            <div className="profile-loading-msg">Загрузка записей…</div>
+          ) : patientAppointments.list.length === 0 ? (
+            <div className="profile-empty-msg">У вас пока нет записей к врачам.</div>
+          ) : (
+            patientAppointments.list.map((appointment) => (
+              <div key={appointment.id} className="appointment-card">
+                <div className="appointment-header">
+                  <div className="appointment-date-badge">
+                    <div className="appointment-day">{new Date(appointment.date + 'T12:00:00').getDate()}</div>
+                    <div className="appointment-month">
+                      {new Date(appointment.date + 'T12:00:00').toLocaleString('ru-RU', { month: 'short' })}
+                    </div>
+                  </div>
+                  <div className="appointment-info">
+                    <div className="appointment-time-doctor">
+                      <span className="appointment-time">{appointment.time}</span>
+                      <span className="appointment-doctor">{appointment.doctor}</span>
+                    </div>
+                    <div className="appointment-details">
+                      <span className="appointment-specialty">{appointment.specialty}</span>
+                      <span className="appointment-room">{appointment.room}</span>
+                    </div>
+                    <div className={`appointment-status appointment-status-${appointment.status}`}>
+                      {appointment.status === 'confirmed' ? 'Подтверждено' : appointment.status === 'cancelled' ? 'Отменено' : 'Ожидает подтверждения'}
+                    </div>
                   </div>
                 </div>
-                <div className="appointment-info">
-                  <div className="appointment-time-doctor">
-                    <span className="appointment-time">{appointment.time}</span>
-                    <span className="appointment-doctor">{appointment.doctor}</span>
+                {appointment.status !== 'cancelled' && (
+                  <div className="appointment-actions">
+                    <button className="appointment-action-btn secondary" onClick={() => rescheduleAppointment(appointment.id)}>
+                      <Calendar size={14} />
+                      Перенести
+                    </button>
+                    <button className="appointment-action-btn danger" onClick={() => cancelAppointment(appointment.id)}>
+                      <X size={14} />
+                      Отменить
+                    </button>
+                    <button className="appointment-action-btn">
+                      <MessageSquare size={14} />
+                      Написать врачу
+                    </button>
                   </div>
-                  <div className="appointment-details">
-                    <span className="appointment-specialty">{appointment.specialty}</span>
-                    <span className="appointment-room">{appointment.room}</span>
-                  </div>
-                  <div className={`appointment-status appointment-status-${appointment.status}`}>
-                    {appointment.status === 'confirmed' ? 'Подтверждено' : 'Ожидает подтверждения'}
-                  </div>
-                </div>
+                )}
               </div>
-              <div className="appointment-actions">
-                <button 
-                  className="appointment-action-btn secondary"
-                  onClick={() => rescheduleAppointment(appointment.id)}
-                >
-                  <Calendar size={14} />
-                  Перенести
-                </button>
-                <button 
-                  className="appointment-action-btn danger"
-                  onClick={() => cancelAppointment(appointment.id)}
-                >
-                  <X size={14} />
-                  Отменить
-                </button>
-                <button className="appointment-action-btn">
-                  <MessageSquare size={14} />
-                  Написать врачу
-                </button>
-              </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
+        {patientAppointments.total > patientAppointments.pageSize && (
+          <div className="profile-pagination-inline" style={{ marginTop: '1rem' }}>
+            <span>
+              {((patientAppointments.page - 1) * patientAppointments.pageSize) + 1}–
+              {Math.min(patientAppointments.page * patientAppointments.pageSize, patientAppointments.total)} из {patientAppointments.total}
+            </span>
+            <button
+              type="button"
+              className="profile-pagination-btn"
+              disabled={patientAppointmentsLoading || patientAppointments.page <= 1}
+              onClick={() => setPatientAppointments((p) => ({ ...p, page: Math.max(1, p.page - 1) }))}
+            >
+              Назад
+            </button>
+            <span>Стр. {patientAppointments.page} из {Math.max(1, Math.ceil(patientAppointments.total / patientAppointments.pageSize))}</span>
+            <button
+              type="button"
+              className="profile-pagination-btn"
+              disabled={patientAppointmentsLoading || patientAppointments.page >= Math.ceil(patientAppointments.total / patientAppointments.pageSize)}
+              onClick={() => setPatientAppointments((p) => ({ ...p, page: p.page + 1 }))}
+            >
+              Вперёд
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="profile-content-block">
         <div className="profile-section-header">
           <h3 className="profile-section-title">
             <Heart size={18} />
-            Медицинская история
+            История препаратов
           </h3>
-          <button className="profile-section-action" onClick={() => alert('Полная история')}>
+          <button className="profile-section-action" onClick={() => openInfo({ title: 'История препаратов', message: 'Список выписанных назначений.', variant: 'info' })}>
             <History size={16} />
             Вся история
           </button>
         </div>
         
         <div className="medical-records">
-          {patientRecords.map(record => (
-            <div key={record.id} className="medical-record-card">
-              <div className="record-header">
-                <div className="record-date">{new Date(record.date).toLocaleDateString('ru-RU')}</div>
-                <div className={`record-status record-status-${record.status}`}>
-                  {record.status === 'active' ? 'Активно' : 'Завершено'}
+          {patientPrescriptionsLoading && patientPrescriptions.list.length === 0 ? (
+            <div className="profile-loading-msg">Загрузка назначений…</div>
+          ) : patientPrescriptions.list.length === 0 ? (
+            <div className="profile-empty-msg">Назначений пока нет.</div>
+          ) : (
+            patientPrescriptions.list.map((record) => {
+              const hasPendingRenewal = prescriptionRenewalRequests.some(
+                (r) => (r.prescription?.id ?? r.prescriptionId) === record.id && (r.status === 'pending' || r.status === 'approved')
+              );
+              return (
+                <div key={record.id} className="medical-record-card">
+                  <div className="record-header">
+                    <div className="record-doctor">{record.doctorName} {record.doctorSpecialty ? `(${record.doctorSpecialty})` : ''}</div>
+                    <div className={`record-status record-status-${hasPendingRenewal ? 'active' : 'completed'}`}>
+                      {hasPendingRenewal ? 'Запрос на продление отправлен' : 'Назначение'}
+                    </div>
+                  </div>
+                  <div className="record-info">
+                    <div className="record-diagnosis">{record.prescriptionName}</div>
+                    <div className="record-prescription">
+                      {record.prescriptionDosage}, {record.prescriptionFrequency}, {record.prescriptionTime}. {record.description ? record.description : ''}
+                    </div>
+                  </div>
+                  <div className="record-actions">
+                    <button type="button" className="record-action-btn" onClick={() => downloadPrescriptionCsv(record)}>
+                      <Download size={14} />
+                      Скачать CSV
+                    </button>
+                    <button
+                      type="button"
+                      className="record-action-btn"
+                      disabled={renewRequestSending === record.id || hasPendingRenewal}
+                      onClick={() => requestPrescriptionRenewal(record.id)}
+                    >
+                      <FileEdit size={14} />
+                      {renewRequestSending === record.id ? 'Отправка…' : hasPendingRenewal ? 'Запрос отправлен' : 'Продлить рецепт'}
+                    </button>
+                    <button type="button" className="record-action-btn" onClick={() => printPrescriptionCsv(record)}>
+                      <Printer size={14} />
+                      Распечатать CSV
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <div className="record-info">
-                <div className="record-doctor">{record.doctor} ({record.specialty})</div>
-                <div className="record-diagnosis">{record.diagnosis}</div>
-                <div className="record-prescription">{record.prescription}</div>
-              </div>
-              <div className="record-actions">
-                <button 
-                  className="record-action-btn"
-                  onClick={() => downloadMedicalRecord(record.id)}
-                >
-                  <Download size={14} />
-                  Скачать
-                </button>
-                <button 
-                  className="record-action-btn"
-                  onClick={() => requestPrescriptionRenewal(record.id)}
-                >
-                  <FileEdit size={14} />
-                  Продлить рецепт
-                </button>
-                <button className="record-action-btn">
-                  <Printer size={14} />
-                  Распечатать
-                </button>
-              </div>
-            </div>
-          ))}
+              );
+            })
+          )}
         </div>
+        {patientPrescriptions.total > patientPrescriptions.pageSize && (
+          <div className="profile-pagination-inline" style={{ marginTop: '1rem' }}>
+            <span>
+              {((patientPrescriptions.page - 1) * patientPrescriptions.pageSize) + 1}–
+              {Math.min(patientPrescriptions.page * patientPrescriptions.pageSize, patientPrescriptions.total)} из {patientPrescriptions.total}
+            </span>
+            <button
+              type="button"
+              className="profile-pagination-btn"
+              disabled={patientPrescriptionsLoading || patientPrescriptions.page <= 1}
+              onClick={() => setPatientPrescriptions((p) => ({ ...p, page: Math.max(1, p.page - 1) }))}
+            >
+              Назад
+            </button>
+            <span>Стр. {patientPrescriptions.page} из {Math.max(1, Math.ceil(patientPrescriptions.total / patientPrescriptions.pageSize))}</span>
+            <button
+              type="button"
+              className="profile-pagination-btn"
+              disabled={patientPrescriptionsLoading || patientPrescriptions.page >= Math.ceil(patientPrescriptions.total / patientPrescriptions.pageSize)}
+              onClick={() => setPatientPrescriptions((p) => ({ ...p, page: p.page + 1 }))}
+            >
+              Вперёд
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="profile-content-block">
@@ -1187,27 +1713,27 @@ const ProfilePage = () => {
           <div className="finance-cards">
             <div className="finance-card">
               <div className="finance-card-title">Баланс</div>
-              <div className="finance-card-amount">5 430 ₽</div>
+              <div className="finance-card-amount">
+                {patientBalanceLoading ? '…' : `${Number(patientBalance ?? 0).toLocaleString('ru-RU')} ₽`}
+              </div>
               <div className="finance-card-subtitle">На счету</div>
-              <button className="finance-card-btn">Пополнить</button>
+              <button type="button" className="finance-card-btn" onClick={() => openInfo({ title: 'Пополнение', message: 'Функция пополнения счёта в разработке.', variant: 'info' })}>
+                Пополнить
+              </button>
             </div>
             <div className="finance-card">
               <div className="finance-card-title">Последний платеж</div>
-              <div className="finance-card-amount">1 200 ₽</div>
-              <div className="finance-card-subtitle">15.02.2024</div>
-              <button className="finance-card-btn secondary">Квитанция</button>
+              <div className="finance-card-amount">—</div>
+              <div className="finance-card-subtitle">Нет данных</div>
+              <button type="button" className="finance-card-btn secondary" onClick={() => openInfo({ title: 'Квитанция', message: 'История платежей в разработке.', variant: 'info' })}>
+                Квитанция
+              </button>
             </div>
           </div>
           <div className="payment-history">
             <h4>История платежей</h4>
             <div className="payment-list">
-              {['Консультация кардиолога', 'Анализы крови', 'УЗИ сердца'].map((item, idx) => (
-                <div key={idx} className="payment-item">
-                  <span>{item}</span>
-                  <span>1 200 ₽</span>
-                  <span className="payment-status paid">Оплачено</span>
-                </div>
-              ))}
+              <div className="profile-empty-msg">История платежей пока пуста.</div>
             </div>
           </div>
         </div>
@@ -1592,13 +2118,21 @@ const ProfilePage = () => {
             Управление системой
           </h3>
           <div className="admin-actions">
-            <button className="admin-action-btn" onClick={backupSystem}>
+            <button
+              className="admin-action-btn"
+              onClick={backupSystem}
+              disabled={!!adminActionLoading}
+            >
               <Database size={16} />
-              Резервная копия
+              {adminActionLoading === 'backup' ? 'Запуск...' : 'Резервная копия'}
             </button>
-            <button className="admin-action-btn" onClick={clearCache}>
+            <button
+              className="admin-action-btn"
+              onClick={clearCache}
+              disabled={!!adminActionLoading}
+            >
               <Zap size={16} />
-              Очистка кэша
+              {adminActionLoading === 'cache' ? 'Очистка...' : 'Очистка кэша'}
             </button>
           </div>
         </div>
@@ -1607,15 +2141,19 @@ const ProfilePage = () => {
           <div className="control-group">
             <h4>Безопасность</h4>
             <div className="control-actions">
-              <button className="control-btn">
+              <button
+                className="control-btn"
+                onClick={checkSecurity}
+                disabled={!!adminActionLoading}
+              >
                 <ShieldCheck size={14} />
-                Проверить безопасность
+                {adminActionLoading === 'security' ? 'Проверка...' : 'Проверить безопасность'}
               </button>
-              <button className="control-btn">
+              <button className="control-btn" onClick={openResetPasswordsModal}>
                 <Key size={14} />
                 Сбросить пароли
               </button>
-              <button className="control-btn">
+              <button className="control-btn" onClick={openNotificationSettings}>
                 <BellOff size={14} />
                 Настройки уведомлений
               </button>
@@ -1625,17 +2163,29 @@ const ProfilePage = () => {
           <div className="control-group">
             <h4>Отчетность</h4>
             <div className="control-actions">
-              <button className="control-btn" onClick={() => generateReport('financial')}>
+              <button
+                className="control-btn"
+                onClick={() => generateReport('financial')}
+                disabled={!!adminActionLoading}
+              >
                 <CreditCard size={14} />
-                Финансовый отчет
+                {adminActionLoading === 'report-financial' ? 'Формирование...' : 'Финансовый отчет'}
               </button>
-              <button className="control-btn" onClick={() => generateReport('medical')}>
+              <button
+                className="control-btn"
+                onClick={() => generateReport('medical')}
+                disabled={!!adminActionLoading}
+              >
                 <FileText size={14} />
-                Медицинский отчет
+                {adminActionLoading === 'report-medical' ? 'Формирование...' : 'Медицинский отчет'}
               </button>
-              <button className="control-btn" onClick={() => generateReport('users')}>
+              <button
+                className="control-btn"
+                onClick={() => generateReport('users')}
+                disabled={!!adminActionLoading}
+              >
                 <Users size={14} />
-                Отчет по пользователям
+                {adminActionLoading === 'report-users' ? 'Формирование...' : 'Отчет по пользователям'}
               </button>
             </div>
           </div>
@@ -1661,14 +2211,34 @@ const ProfilePage = () => {
               </div>
             ))
           )}
-          <button
-            type="button"
-            className="view-all-activity"
-            disabled={activityLoading}
-            onClick={() => setActivityShowAll((prev) => !prev)}
-          >
-            {activityShowAll ? 'Свернуть' : 'Показать всю активность'}
-          </button>
+          {activityTotal > 0 && (
+            <div className="activity-pagination">
+              <span className="activity-pagination-info">
+                {((activityPage - 1) * activityPageSize) + 1}–{Math.min(activityPage * activityPageSize, activityTotal)} из {activityTotal}
+              </span>
+              <div className="activity-pagination-buttons">
+                <button
+                  type="button"
+                  className="activity-pagination-btn"
+                  disabled={activityLoading || activityPage <= 1}
+                  onClick={() => setActivityPage((p) => Math.max(1, p - 1))}
+                >
+                  Назад
+                </button>
+                <span className="activity-pagination-page">
+                  Страница {activityPage} из {Math.max(1, Math.ceil(activityTotal / activityPageSize))}
+                </span>
+                <button
+                  type="button"
+                  className="activity-pagination-btn"
+                  disabled={activityLoading || activityPage >= Math.ceil(activityTotal / activityPageSize)}
+                  onClick={() => setActivityPage((p) => p + 1)}
+                >
+                  Вперёд
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -1700,7 +2270,9 @@ const ProfilePage = () => {
               
               <div className="patients-summary">
                 <div className="summary-card">
-                  <div className="summary-value">{filteredPatients.length}</div>
+                  <div className="summary-value">
+                    {currentUser?.type === 'doctor' ? doctorPatientsTotal : filteredPatients.length}
+                  </div>
                   <div className="summary-label">Всего пациентов</div>
                 </div>
                 <div className="summary-card">
@@ -1719,7 +2291,9 @@ const ProfilePage = () => {
             </div>
 
             <div className="patients-list">
-              {filteredPatients.length > 0 ? (
+              {currentUser?.type === 'doctor' && doctorPatientsLoading && filteredPatients.length === 0 ? (
+                <div className="doctor-patients-loading">Загрузка пациентов...</div>
+              ) : filteredPatients.length > 0 ? (
                 filteredPatients.map(patient => (
                   <div key={patient.id} className="patient-card">
                     <div className="patient-card-header">
@@ -1731,7 +2305,6 @@ const ProfilePage = () => {
                           {patient.firstName} {patient.lastName}
                         </div>
                         <div className="patient-details">
-                          <span>{patient.age} лет</span>
                           <span>{patient.phone}</span>
                           <span className={`patient-status patient-status-${patient.status}`}>
                             {patient.status === 'active' ? 'Активный' : 'Неактивный'}
@@ -1785,8 +2358,117 @@ const ProfilePage = () => {
                   <p>Пациенты не найдены</p>
                 </div>
               )}
+              {currentUser?.type === 'doctor' && doctorPatientsTotal > 0 && (
+                <div className="doctor-patients-pagination">
+                  <span className="doctor-patients-pagination-info">
+                    {((doctorPatientsPage - 1) * doctorPatientsPageSize) + 1}–{Math.min(doctorPatientsPage * doctorPatientsPageSize, doctorPatientsTotal)} из {doctorPatientsTotal}
+                  </span>
+                  <div className="doctor-patients-pagination-buttons">
+                    <button
+                      type="button"
+                      className="doctor-patients-pagination-btn"
+                      disabled={doctorPatientsLoading || doctorPatientsPage <= 1}
+                      onClick={() => setDoctorPatientsPage((p) => Math.max(1, p - 1))}
+                    >
+                      Назад
+                    </button>
+                    <span className="doctor-patients-pagination-page">
+                      Страница {doctorPatientsPage} из {Math.max(1, Math.ceil(doctorPatientsTotal / doctorPatientsPageSize))}
+                    </span>
+                    <button
+                      type="button"
+                      className="doctor-patients-pagination-btn"
+                      disabled={doctorPatientsLoading || doctorPatientsPage >= Math.ceil(doctorPatientsTotal / doctorPatientsPageSize)}
+                      onClick={() => setDoctorPatientsPage((p) => p + 1)}
+                    >
+                      Вперёд
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
+        </div>
+
+        <div className="profile-content-block">
+          <h3 className="profile-section-title">
+            <FileText size={18} />
+            Запросы на продление рецептов
+          </h3>
+          {doctorRenewalRequestsLoading ? (
+            <div className="profile-loading-msg">Загрузка запросов…</div>
+          ) : doctorRenewalRequests.length === 0 ? (
+            <div className="profile-empty-msg">Нет запросов на продление.</div>
+          ) : (
+            <div className="renewal-requests-list">
+              {doctorRenewalRequests.map((req) => {
+                const prescription = req.prescription ?? {};
+                const patientUser = req.patientUser ?? {};
+                const patientName = patientUser.fullName || 'Пациент';
+                const isPending = req.status === 'pending';
+                const isUpdating = renewalRequestUpdatingId === req.id;
+                return (
+                  <div key={req.id} className={`renewal-request-card renewal-request-${req.status}`}>
+                    <div className="renewal-request-info">
+                      <div className="renewal-request-patient">{patientName}</div>
+                      <div className="renewal-request-prescription">
+                        {prescription.prescriptionName || 'Назначение'} {prescription.prescriptionDosage ? `— ${prescription.prescriptionDosage}` : ''}
+                      </div>
+                      <div className="renewal-request-status">
+                        {req.status === 'pending' && 'Ожидает решения'}
+                        {req.status === 'approved' && 'Одобрен'}
+                        {req.status === 'rejected' && 'Отклонён'}
+                      </div>
+                    </div>
+                    {isPending && (
+                      <div className="renewal-request-actions">
+                        <button
+                          type="button"
+                          className="renewal-request-btn approve"
+                          disabled={isUpdating}
+                          onClick={async () => {
+                            setRenewalRequestUpdatingId(req.id);
+                            try {
+                              await AuthAPI.updateRenewalRequestStatus(req.id, 'approved');
+                              openInfo({ title: 'Готово', message: 'Запрос одобрен.', variant: 'success' });
+                              const res = await AuthAPI.getMyRenewalRequests();
+                              setDoctorRenewalRequests(res?.list ?? []);
+                            } catch (e) {
+                              openInfo({ title: 'Ошибка', message: e?.response?.data?.message || 'Не удалось одобрить.', variant: 'error' });
+                            } finally {
+                              setRenewalRequestUpdatingId(null);
+                            }
+                          }}
+                        >
+                          Одобрить
+                        </button>
+                        <button
+                          type="button"
+                          className="renewal-request-btn reject"
+                          disabled={isUpdating}
+                          onClick={async () => {
+                            setRenewalRequestUpdatingId(req.id);
+                            try {
+                              await AuthAPI.updateRenewalRequestStatus(req.id, 'rejected');
+                              openInfo({ title: 'Готово', message: 'Запрос отклонён.', variant: 'success' });
+                              const res = await AuthAPI.getMyRenewalRequests();
+                              setDoctorRenewalRequests(res?.list ?? []);
+                            } catch (e) {
+                              openInfo({ title: 'Ошибка', message: e?.response?.data?.message || 'Не удалось отклонить.', variant: 'error' });
+                            } finally {
+                              setRenewalRequestUpdatingId(null);
+                            }
+                          }}
+                        >
+                          Отклонить
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div className="profile-content-block">
@@ -1796,13 +2478,11 @@ const ProfilePage = () => {
           </h3>
           <div className="profile-stats">
             <div className="profile-stat">
-              <div className="profile-stat-value">{filteredPatients.length || 0}</div>
+              <div className="profile-stat-value">{doctorPatientsTotal}</div>
               <div className="profile-stat-label">Всего пациентов</div>
             </div>
             <div className="profile-stat">
-              <div className="profile-stat-value">
-                {filteredPatients.filter(p => p.nextAppointment).length}
-              </div>
+              <div className="profile-stat-value">{todayVisitsTotal}</div>
               <div className="profile-stat-label">С записями</div>
             </div>
             <div className="profile-stat">
@@ -1815,34 +2495,72 @@ const ProfilePage = () => {
           
           <div className="profile-appointments">
             <h4>Ближайшие приемы:</h4>
-            {filteredPatients
-              .filter(p => p.nextAppointment)
-              .slice(0, 3)
-              .map(patient => (
-                <div key={patient.id} className="profile-appointment">
-                  <div className="appointment-date">
-                    <div className="appointment-day">
-                      {new Date(patient.nextAppointment).getDate()}
+            {todayVisitsLoading && todayVisitsList.length === 0 ? (
+              <div className="profile-loading-msg">Загрузка приёмов…</div>
+            ) : todayVisitsList.length === 0 ? (
+              <div className="profile-empty-msg">На сегодня приёмов нет.</div>
+            ) : (
+              <>
+                {todayVisitsList
+                  .filter(v => v.appointmentStatus !== 'cancelled')
+                  .map(v => (
+                    <div key={v.visitId} className="profile-appointment">
+                      <div className="appointment-date">
+                        <div className="appointment-day">{new Date().getDate()}</div>
+                        <div className="appointment-month">
+                          {new Date().toLocaleString('ru-RU', { month: 'short' })}
+                        </div>
+                      </div>
+                      <div className="appointment-info">
+                        <div className="appointment-time-doctor">
+                          <span className="appointment-patient">{v.fullName}</span>
+                          <span className="appointment-time">{v.time}</span>
+                        </div>
+                        <div className="appointment-specialty">{v.phone}</div>
+                        <button
+                          className="appointment-action-btn"
+                          onClick={() => {
+                            const p = doctorPatientsList.find(pat => pat.id === v.cardId) ?? {
+                              id: v.cardId,
+                              fullName: v.fullName,
+                              phone: v.phone,
+                              firstName: (v.fullName || '').split(/\s+/)[0] || '',
+                              lastName: (v.fullName || '').split(/\s+/).slice(1).join(' ') || '',
+                            };
+                            openPatientCard(p);
+                          }}
+                        >
+                          Открыть карточку
+                          <ChevronRight size={14} />
+                        </button>
+                      </div>
                     </div>
-                    <div className="appointment-month">
-                      {new Date(patient.nextAppointment).toLocaleString('ru-RU', { month: 'short' })}
-                    </div>
-                  </div>
-                  <div className="appointment-info">
-                    <div className="appointment-time-doctor">
-                      <span className="appointment-patient">{patient.firstName} {patient.lastName}</span>
-                    </div>
-                    <div className="appointment-specialty">{patient.complaints}</div>
-                    <button
-                      className="appointment-action-btn"
-                      onClick={() => openPatientCard(patient)}
-                    >
-                      Открыть карточку
-                      <ChevronRight size={14} />
-                    </button>
-                  </div>
+                  ))}
+                <div className="profile-pagination-inline">
+                  <span>
+                    {((todayVisitsPage - 1) * todayVisitsPageSize) + 1}–
+                    {Math.min(todayVisitsPage * todayVisitsPageSize, todayVisitsTotal)} из {todayVisitsTotal}
+                  </span>
+                  <button
+                    type="button"
+                    className="profile-pagination-btn"
+                    disabled={todayVisitsLoading || todayVisitsPage <= 1}
+                    onClick={() => setTodayVisitsPage((p) => Math.max(1, p - 1))}
+                  >
+                    Назад
+                  </button>
+                  <span>Стр. {todayVisitsPage} из {Math.max(1, Math.ceil(todayVisitsTotal / todayVisitsPageSize))}</span>
+                  <button
+                    type="button"
+                    className="profile-pagination-btn"
+                    disabled={todayVisitsLoading || todayVisitsPage >= Math.ceil(todayVisitsTotal / todayVisitsPageSize)}
+                    onClick={() => setTodayVisitsPage((p) => p + 1)}
+                  >
+                    Вперёд
+                  </button>
                 </div>
-              ))}
+              </>
+            )}
           </div>
         </div>
 
@@ -1855,9 +2573,10 @@ const ProfilePage = () => {
             <button
               className="quick-action-btn"
               onClick={() => {
-                if (filteredPatients.length > 0) {
-                  openPatientCard(filteredPatients[0]);
-                }
+                setModalPatientPage(1);
+                setModalPatientSearch('');
+                setSelectedPatientForAction(null);
+                setQuickActionType('prescription');
               }}
             >
               <ClipboardList size={20} />
@@ -1866,10 +2585,10 @@ const ProfilePage = () => {
             <button
               className="quick-action-btn"
               onClick={() => {
-                if (filteredPatients.length > 0) {
-                  openPatientCard(filteredPatients[0]);
-                  setActiveTab('tests');
-                }
+                setModalPatientPage(1);
+                setModalPatientSearch('');
+                setSelectedPatientForAction(null);
+                setQuickActionType('analysis');
               }}
             >
               <FileText size={20} />
@@ -1878,14 +2597,12 @@ const ProfilePage = () => {
             <button
               className="quick-action-btn"
               onClick={() => {
-                if (filteredPatients.length > 0) {
-                  openPatientCard(filteredPatients[0]);
-                  setActiveTab('attendance');
-                }
+                setCancelVisitsPage(1);
+                setQuickActionType('cancel');
               }}
             >
               <CheckCircle size={20} />
-              Отметить посещение
+              Отменить посещение
             </button>
           </div>
         </div>
@@ -2077,13 +2794,26 @@ const ProfilePage = () => {
                         </div>
                       )}
 
-                      {currentUser.type === 'doctor' && currentUser.license && (
+                      {currentUser.type === 'doctor' && (
                         <div className="profile-input-group">
-                          <label className="profile-label">Лицензия</label>
-                          <div className="profile-info-value">
-                            <Shield size={16} className="profile-info-icon" />
-                            {currentUser.license}
-                          </div>
+                          <label className="profile-label">Сертификат / Лицензия</label>
+                          {isEditing ? (
+                            <div className="profile-input-wrapper">
+                              <Shield size={18} className="profile-input-icon" />
+                              <input
+                                type="text"
+                                value={userData.certificate ?? ''}
+                                onChange={(e) => handleInputChange('certificate', e.target.value)}
+                                className="profile-input"
+                                placeholder="Номер или название сертификата"
+                              />
+                            </div>
+                          ) : (
+                            <div className="profile-info-value">
+                              <Shield size={16} className="profile-info-icon" />
+                              {currentUser.license || currentUser.certificates?.[0] || '—'}
+                            </div>
+                          )}
                         </div>
                       )}
 
@@ -2113,8 +2843,12 @@ const ProfilePage = () => {
                         <Bell size={16} />
                         Настройки уведомлений
                       </button>
-                      {currentUser.type === 'admin' && (
-                        <button className="profile-security-button">
+                      {(currentUser.type === 'admin' || currentUser?.isAdmin) && (
+                        <button
+                          type="button"
+                          className="profile-security-button"
+                          onClick={() => navigate('/profile/security')}
+                        >
                           <Shield size={16} />
                           Настройки безопасности
                         </button>
@@ -2202,7 +2936,362 @@ const ProfilePage = () => {
         </div>
       </div>
 
-      <PatientCardModal />
+      {/* Модальное окно сброса паролей врачей */}
+      <div className={`password-modal-overlay ${isResetPasswordsModalOpen ? 'active' : ''}`} onClick={closeResetPasswordsModal} aria-hidden={!isResetPasswordsModalOpen}>
+        <div className="password-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="password-modal-header">
+            <div className="password-modal-title-wrap">
+              <Key size={22} className="password-modal-icon" />
+              <h3 className="password-modal-title">Сброс паролей врачей</h3>
+            </div>
+            <p className="password-modal-subtitle">Введите новый пароль — он будет установлен для всех врачей в системе (не менее 6 символов)</p>
+            <button type="button" className="password-modal-close" onClick={closeResetPasswordsModal} aria-label="Закрыть">
+              <X size={20} />
+            </button>
+          </div>
+          <form className="password-modal-form" onSubmit={handleResetDoctorsPassword}>
+            {resetPasswordsError && <div className="password-modal-error">{resetPasswordsError}</div>}
+            {resetPasswordsSuccess && <div className="password-modal-success">{resetPasswordsSuccess}</div>}
+            <div className="password-modal-field">
+              <label className="password-modal-label">Новый пароль</label>
+              <div className="password-modal-input-wrap">
+                <Lock size={18} className="password-modal-input-icon" />
+                <input
+                  type={showResetNew ? 'text' : 'password'}
+                  value={resetPasswordsNew}
+                  onChange={(e) => setResetPasswordsNew(e.target.value)}
+                  className="password-modal-input"
+                  placeholder="••••••••"
+                  autoComplete="new-password"
+                  minLength={6}
+                  disabled={resetPasswordsSaving}
+                />
+                <button type="button" className="password-modal-toggle" onClick={() => setShowResetNew((v) => !v)} aria-label={showResetNew ? 'Скрыть пароль' : 'Показать пароль'}>
+                  {showResetNew ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+            <div className="password-modal-field">
+              <label className="password-modal-label">Подтвердите пароль</label>
+              <div className="password-modal-input-wrap">
+                <Lock size={18} className="password-modal-input-icon" />
+                <input
+                  type={showResetConfirm ? 'text' : 'password'}
+                  value={resetPasswordsConfirm}
+                  onChange={(e) => setResetPasswordsConfirm(e.target.value)}
+                  className="password-modal-input"
+                  placeholder="••••••••"
+                  autoComplete="new-password"
+                  minLength={6}
+                  disabled={resetPasswordsSaving}
+                />
+                <button type="button" className="password-modal-toggle" onClick={() => setShowResetConfirm((v) => !v)} aria-label={showResetConfirm ? 'Скрыть пароль' : 'Показать пароль'}>
+                  {showResetConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+            <div className="password-modal-actions">
+              <button type="button" className="password-modal-btn password-modal-btn-cancel" onClick={closeResetPasswordsModal} disabled={resetPasswordsSaving}>
+                Отмена
+              </button>
+              <button type="submit" className="password-modal-btn password-modal-btn-submit" disabled={resetPasswordsSaving}>
+                {resetPasswordsSaving ? 'Сохранение...' : 'Установить пароль всем врачам'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      {/* Модалки быстрых действий врача: выбор пациента / визита, формы назначения и анализов */}
+      {currentUser?.type === 'doctor' && (
+        <div
+          className={`quick-action-modal-overlay ${quickActionType ? 'active' : ''}`}
+          onClick={() => {
+            setQuickActionType(null);
+            setSelectedPatientForAction(null);
+          }}
+          aria-hidden={!quickActionType}
+        >
+          <div className="quick-action-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="quick-action-modal-header">
+              <h3 className="quick-action-modal-title">
+                {quickActionType === 'prescription' && !selectedPatientForAction && 'Добавить назначение — выберите пациента'}
+                {quickActionType === 'prescription' && selectedPatientForAction && `Назначение: ${selectedPatientForAction.fullName}`}
+                {quickActionType === 'analysis' && !selectedPatientForAction && 'Добавить анализы — выберите пациента'}
+                {quickActionType === 'analysis' && selectedPatientForAction && `Анализы: ${selectedPatientForAction.fullName}`}
+                {quickActionType === 'cancel' && 'Отменить посещение'}
+              </h3>
+              <button
+                type="button"
+                className="quick-action-modal-close"
+                onClick={() => { setQuickActionType(null); setSelectedPatientForAction(null); }}
+                aria-label="Закрыть"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="quick-action-modal-body">
+              {/* Шаг 1: выбор пациента (назначение / анализы) */}
+              {(quickActionType === 'prescription' || quickActionType === 'analysis') && !selectedPatientForAction && (
+                <>
+                  <div className="quick-action-search">
+                    <Search size={18} />
+                    <input
+                      type="text"
+                      className="quick-action-search-input"
+                      placeholder="Поиск по имени пациента"
+                      value={modalPatientSearch}
+                      onChange={(e) => { setModalPatientSearch(e.target.value); setModalPatientPage(1); }}
+                    />
+                  </div>
+                  {modalPatientLoading ? (
+                    <div className="quick-action-loading">Загрузка…</div>
+                  ) : (
+                    <div className="quick-action-table-wrap">
+                      <table className="quick-action-table">
+                        <thead>
+                          <tr>
+                            <th>ФИО</th>
+                            <th>Телефон</th>
+                            <th></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {modalPatientList.map((item) => (
+                            <tr key={item.id}>
+                              <td>{item.fullName || '—'}</td>
+                              <td>{item.phone || '—'}</td>
+                              <td>
+                                <button
+                                  type="button"
+                                  className="quick-action-select-btn"
+                                  onClick={() => setSelectedPatientForAction({ id: item.id, fullName: item.fullName, phone: item.phone })}
+                                >
+                                  Выбрать
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {modalPatientList.length === 0 && <div className="quick-action-empty">Пациенты не найдены</div>}
+                      <div className="quick-action-pagination">
+                        <span>
+                          {((modalPatientPage - 1) * modalPatientPageSize) + 1}–{Math.min(modalPatientPage * modalPatientPageSize, modalPatientTotal)} из {modalPatientTotal}
+                        </span>
+                        <button
+                          type="button"
+                          className="profile-pagination-btn"
+                          disabled={modalPatientLoading || modalPatientPage <= 1}
+                          onClick={() => setModalPatientPage((p) => Math.max(1, p - 1))}
+                        >
+                          Назад
+                        </button>
+                        <span>Стр. {modalPatientPage} из {Math.max(1, Math.ceil(modalPatientTotal / modalPatientPageSize))}</span>
+                        <button
+                          type="button"
+                          className="profile-pagination-btn"
+                          disabled={modalPatientLoading || modalPatientPage >= Math.ceil(modalPatientTotal / modalPatientPageSize)}
+                          onClick={() => setModalPatientPage((p) => p + 1)}
+                        >
+                          Вперёд
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Шаг 2: форма назначения */}
+              {quickActionType === 'prescription' && selectedPatientForAction && (
+                <form
+                  className="quick-action-form"
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    setQuickActionSubmitting(true);
+                    try {
+                      await AuthAPI.createPrescription({
+                        pacientId: selectedPatientForAction.id,
+                        prescriptionName: prescriptionForm.prescriptionName,
+                        prescriptionDosage: prescriptionForm.prescriptionDosage,
+                        prescriptionFrequency: prescriptionForm.prescriptionFrequency,
+                        prescriptionTime: prescriptionForm.prescriptionTime,
+                        description: prescriptionForm.description,
+                      });
+                      openInfo({ title: 'Готово', message: 'Назначение добавлено.', variant: 'success' });
+                      setQuickActionType(null);
+                      setSelectedPatientForAction(null);
+                      setPrescriptionForm({ prescriptionName: '', prescriptionDosage: '', prescriptionFrequency: '', prescriptionTime: '', description: '' });
+                    } catch (err) {
+                      openInfo({ title: 'Ошибка', message: err?.response?.data?.message || 'Не удалось добавить назначение', variant: 'error' });
+                    } finally {
+                      setQuickActionSubmitting(false);
+                    }
+                  }}
+                >
+                  <div className="quick-action-form-row">
+                    <label>Название препарата</label>
+                    <input value={prescriptionForm.prescriptionName} onChange={(e) => setPrescriptionForm((f) => ({ ...f, prescriptionName: e.target.value }))} required />
+                  </div>
+                  <div className="quick-action-form-row">
+                    <label>Дозировка</label>
+                    <input value={prescriptionForm.prescriptionDosage} onChange={(e) => setPrescriptionForm((f) => ({ ...f, prescriptionDosage: e.target.value }))} required />
+                  </div>
+                  <div className="quick-action-form-row">
+                    <label>Частота приёма</label>
+                    <input value={prescriptionForm.prescriptionFrequency} onChange={(e) => setPrescriptionForm((f) => ({ ...f, prescriptionFrequency: e.target.value }))} required />
+                  </div>
+                  <div className="quick-action-form-row">
+                    <label>Время приёма</label>
+                    <input value={prescriptionForm.prescriptionTime} onChange={(e) => setPrescriptionForm((f) => ({ ...f, prescriptionTime: e.target.value }))} required />
+                  </div>
+                  <div className="quick-action-form-row">
+                    <label>Описание</label>
+                    <textarea value={prescriptionForm.description} onChange={(e) => setPrescriptionForm((f) => ({ ...f, description: e.target.value }))} required />
+                  </div>
+                  <div className="quick-action-form-actions">
+                    <button type="button" className="quick-action-btn-cancel" onClick={() => setSelectedPatientForAction(null)}>Назад</button>
+                    <button type="submit" className="quick-action-btn-submit" disabled={quickActionSubmitting}>{quickActionSubmitting ? 'Сохранение…' : 'Сохранить'}</button>
+                  </div>
+                </form>
+              )}
+
+              {/* Шаг 2: форма анализа */}
+              {quickActionType === 'analysis' && selectedPatientForAction && (
+                <form
+                  className="quick-action-form"
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    setQuickActionSubmitting(true);
+                    try {
+                      await AuthAPI.createAnalysis({
+                        pacientId: selectedPatientForAction.id,
+                        type: analysisForm.type,
+                        text: analysisForm.text || undefined,
+                        assignedDate: analysisForm.assignedDate,
+                        costs: analysisForm.costs ? Number(analysisForm.costs) : undefined,
+                      });
+                      openInfo({ title: 'Готово', message: 'Анализ добавлен.', variant: 'success' });
+                      setQuickActionType(null);
+                      setSelectedPatientForAction(null);
+                      setAnalysisForm({ type: '', text: '', assignedDate: new Date().toISOString().split('T')[0], costs: '' });
+                    } catch (err) {
+                      openInfo({ title: 'Ошибка', message: err?.response?.data?.message || 'Не удалось добавить анализ', variant: 'error' });
+                    } finally {
+                      setQuickActionSubmitting(false);
+                    }
+                  }}
+                >
+                  <div className="quick-action-form-row">
+                    <label>Тип анализа</label>
+                    <input value={analysisForm.type} onChange={(e) => setAnalysisForm((f) => ({ ...f, type: e.target.value }))} required placeholder="Например: ОАК" />
+                  </div>
+                  <div className="quick-action-form-row">
+                    <label>Дата назначения</label>
+                    <input type="date" value={analysisForm.assignedDate} onChange={(e) => setAnalysisForm((f) => ({ ...f, assignedDate: e.target.value }))} required />
+                  </div>
+                  <div className="quick-action-form-row">
+                    <label>Примечание (необязательно)</label>
+                    <textarea value={analysisForm.text} onChange={(e) => setAnalysisForm((f) => ({ ...f, text: e.target.value }))} />
+                  </div>
+                  <div className="quick-action-form-row">
+                    <label>Стоимость (необязательно)</label>
+                    <input type="number" value={analysisForm.costs} onChange={(e) => setAnalysisForm((f) => ({ ...f, costs: e.target.value }))} placeholder="100" />
+                  </div>
+                  <div className="quick-action-form-actions">
+                    <button type="button" className="quick-action-btn-cancel" onClick={() => setSelectedPatientForAction(null)}>Назад</button>
+                    <button type="submit" className="quick-action-btn-submit" disabled={quickActionSubmitting}>{quickActionSubmitting ? 'Сохранение…' : 'Сохранить'}</button>
+                  </div>
+                </form>
+              )}
+
+              {/* Модалка отмены посещения: список визитов на сегодня */}
+              {quickActionType === 'cancel' && (
+                <>
+                  {cancelVisitsLoading ? (
+                    <div className="quick-action-loading">Загрузка визитов…</div>
+                  ) : (
+                    <div className="quick-action-table-wrap">
+                      <table className="quick-action-table">
+                        <thead>
+                          <tr>
+                            <th>Пациент</th>
+                            <th>Время</th>
+                            <th>Статус</th>
+                            <th></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {cancelVisitsList
+                            .filter((v) => v.appointmentStatus !== 'cancelled')
+                            .map((v) => (
+                              <tr key={v.visitId}>
+                                <td>{v.fullName}</td>
+                                <td>{v.time}</td>
+                                <td>{v.appointmentStatus === 'confirmed' ? 'Подтверждён' : v.appointmentStatus === 'pending' ? 'Ожидает' : v.appointmentStatus}</td>
+                                <td>
+                                  <button
+                                    type="button"
+                                    className="quick-action-cancel-visit-btn"
+                                    disabled={quickActionSubmitting}
+                                    onClick={async () => {
+                                      setQuickActionSubmitting(true);
+                                      try {
+                                        await AuthAPI.cancelVisit(v.visitId);
+                                        openInfo({ title: 'Готово', message: 'Визит отменён.', variant: 'success' });
+                                        setCancelVisitsList((prev) => prev.filter((x) => x.visitId !== v.visitId));
+                                        setCancelVisitsTotal((t) => Math.max(0, t - 1));
+                                        AuthAPI.getMyVisitsToday(todayVisitsPage, todayVisitsPageSize).then((res) => {
+                                          setTodayVisitsList(res?.list ?? []);
+                                          setTodayVisitsTotal(res?.total ?? 0);
+                                        });
+                                      } catch (err) {
+                                        openInfo({ title: 'Ошибка', message: err?.response?.data?.message || 'Не удалось отменить визит', variant: 'error' });
+                                      } finally {
+                                        setQuickActionSubmitting(false);
+                                      }
+                                    }}
+                                  >
+                                    Отменить визит
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                      {cancelVisitsList.filter((v) => v.appointmentStatus !== 'cancelled').length === 0 && (
+                        <div className="quick-action-empty">Нет визитов для отмены на сегодня.</div>
+                      )}
+                      <div className="quick-action-pagination">
+                        <span>{((cancelVisitsPage - 1) * cancelVisitsPageSize) + 1}–{Math.min(cancelVisitsPage * cancelVisitsPageSize, cancelVisitsTotal)} из {cancelVisitsTotal}</span>
+                        <button
+                          type="button"
+                          className="profile-pagination-btn"
+                          disabled={cancelVisitsLoading || cancelVisitsPage <= 1}
+                          onClick={() => setCancelVisitsPage((p) => Math.max(1, p - 1))}
+                        >
+                          Назад
+                        </button>
+                        <span>Стр. {cancelVisitsPage} из {Math.max(1, Math.ceil(cancelVisitsTotal / cancelVisitsPageSize))}</span>
+                        <button
+                          type="button"
+                          className="profile-pagination-btn"
+                          disabled={cancelVisitsLoading || cancelVisitsPage >= Math.ceil(cancelVisitsTotal / cancelVisitsPageSize)}
+                          onClick={() => setCancelVisitsPage((p) => p + 1)}
+                        >
+                          Вперёд
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {patientCardModalContent}
     </div>
   );
 };

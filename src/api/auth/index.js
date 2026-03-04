@@ -41,15 +41,63 @@ export class AuthAPI {
         return data;
     }
 
-    /** PATCH /profile — обновление персональных данных (fullName, email, phone, policyNumber). */
+    /** PATCH /profile — обновление персональных данных (fullName, email, phone, policyNumber, certificates, position). */
     static async updateProfile(data) {
         const { data: result } = await api.patch(`${AuthAPI.PREFIX_USER}/profile`, {
             fullName: data.fullName,
             email: data.email,
             phone: data.phone,
             policyNumber: data.policyNumber,
+            certificates: data.certificates,
+            position: data.position,
         });
         return result;
+    }
+
+    /** GET /me/patients — список пациентов врача с пагинацией и поиском по имени (только для врача). */
+    static async getMyPatients(page = 1, pageSize = 10, search = '') {
+        const { data } = await api.get(`${AuthAPI.PREFIX_USER}/me/patients`, {
+            params: { page, pageSize, ...(search && { search }) },
+        });
+        return data;
+    }
+
+    /** GET /me/visits-today — визиты на текущую дату с пагинацией (только для врача). */
+    static async getMyVisitsToday(page = 1, pageSize = 10) {
+        const { data } = await api.get(`${AuthAPI.PREFIX_USER}/me/visits-today`, {
+            params: { page, pageSize },
+        });
+        return data;
+    }
+
+    /** PATCH /me/visits/:id/cancel — отменить визит (только для врача). */
+    static async cancelVisit(visitId) {
+        const { data } = await api.patch(`${AuthAPI.PREFIX_USER}/me/visits/${visitId}/cancel`);
+        return data;
+    }
+
+    /** POST /me/prescriptions — добавить назначение выбранному пациенту (id карты). */
+    static async createPrescription(body) {
+        const { data } = await api.post(`${AuthAPI.PREFIX_USER}/me/prescriptions`, body);
+        return data;
+    }
+
+    /** POST /me/analyses — добавить анализ выбранному пациенту (id карты). */
+    static async createAnalysis(body) {
+        const { data } = await api.post(`${AuthAPI.PREFIX_USER}/me/analyses`, body);
+        return data;
+    }
+
+    /** GET /me/patients/:cardId/prescriptions — назначения по карточке пациента (для врача). */
+    static async getCardPrescriptions(cardId) {
+        const { data } = await api.get(`${AuthAPI.PREFIX_USER}/me/patients/${cardId}/prescriptions`);
+        return data;
+    }
+
+    /** GET /me/patients/:cardId/analyses — анализы по карточке пациента (для врача). */
+    static async getCardAnalyses(cardId) {
+        const { data } = await api.get(`${AuthAPI.PREFIX_USER}/me/patients/${cardId}/analyses`);
+        return data;
     }
 
     static async changeUnsignedPassword(email, password) {
@@ -57,6 +105,52 @@ export class AuthAPI {
             email: email,
             password: password,
         });
+        return data;
+    }
+
+    /** GET /me/appointments — записи (визиты) пациента с пагинацией. */
+    static async getMyAppointments(page = 1, pageSize = 10) {
+        const { data } = await api.get(`${AuthAPI.PREFIX_USER}/me/appointments`, {
+            params: { page, pageSize },
+        });
+        return data;
+    }
+
+    /** GET /me/prescriptions — история назначений (препаратов) пациента с пагинацией. */
+    static async getMyPrescriptions(page = 1, pageSize = 10) {
+        const { data } = await api.get(`${AuthAPI.PREFIX_USER}/me/prescriptions`, {
+            params: { page, pageSize },
+        });
+        return data;
+    }
+
+    /** GET /me/balance — баланс счёта пациента. */
+    static async getMyBalance() {
+        const { data } = await api.get(`${AuthAPI.PREFIX_USER}/me/balance`);
+        return data;
+    }
+
+    /** POST /me/prescriptions/:id/renew-request — запрос на продление рецепта. */
+    static async createPrescriptionRenewalRequest(prescriptionId) {
+        const { data } = await api.post(`${AuthAPI.PREFIX_USER}/me/prescriptions/${prescriptionId}/renew-request`);
+        return data;
+    }
+
+    /** GET /me/prescription-renewal-requests — список запросов на продление (для пациента). */
+    static async getMyPrescriptionRenewalRequests() {
+        const { data } = await api.get(`${AuthAPI.PREFIX_USER}/me/prescription-renewal-requests`);
+        return data;
+    }
+
+    /** GET /me/renewal-requests — запросы на продление рецептов для врача. */
+    static async getMyRenewalRequests() {
+        const { data } = await api.get(`${AuthAPI.PREFIX_USER}/me/renewal-requests`);
+        return data;
+    }
+
+    /** PATCH /me/renewal-requests/:id — одобрить/отклонить запрос (status: 'approved' | 'rejected'). */
+    static async updateRenewalRequestStatus(requestId, status) {
+        const { data } = await api.patch(`${AuthAPI.PREFIX_USER}/me/renewal-requests/${requestId}`, { status });
         return data;
     }
 }

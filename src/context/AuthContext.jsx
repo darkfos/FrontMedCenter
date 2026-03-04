@@ -4,13 +4,13 @@ import { AuthAPI } from '../api/auth';
 const AuthContext = createContext();
 
 const USER_TYPE_MAP = {
-  PACIENT: 'patient',
-  DOCTOR: 'doctor',
-  REGISTER: 'patient',
-  MANAGER: 'admin',
+  pacient: 'patient',
+  admin: 'admin',
+  doctor: 'doctor',
+  nurse: 'nurse',
 };
 
-/** Нормализует пользователя с API (fullName, userType) в форму для UI (firstName, lastName, type) */
+/** Нормализует пользователя с API (fullName, userType, certificates) в форму для UI */
 function normalizeUser(user) {
   if (!user) return user;
   const fullName = user.fullName || '';
@@ -18,12 +18,15 @@ function normalizeUser(user) {
   const firstName = user.firstName ?? parts[0] ?? '';
   const lastName = user.lastName ?? parts.slice(1).join(' ') ?? '';
   const type = user.type ?? USER_TYPE_MAP[user.userType] ?? (user.isAdmin ? 'admin' : 'patient');
+  const license = user.certificates?.[0] ?? user.license ?? '';
   return {
     ...user,
     fullName: fullName || `${firstName} ${lastName}`.trim(),
     firstName,
     lastName,
     type,
+    license,
+    certificates: user.certificates ?? [],
   };
 }
 

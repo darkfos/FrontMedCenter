@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext'; 
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { InfoModalProvider } from './context/InfoModalContext';
 import Header from './components/Header/Header';
 import Footer from './components/Footer/Footer';
 import HeroSection from './components/HeroSection/HeroSection';
@@ -11,6 +12,7 @@ import AuthPage from './pages/AuthPage/AuthPage';
 import TermsPage from './pages/TermsPage/TermsPage';
 import PrivacyPage from './pages/TermsPage/PrivacyPage';
 import ProfilePage from './pages/ProfilePage/ProfilePage';
+import SecuritySettingsPage from './pages/SecuritySettingsPage/SecuritySettingsPage';
 import ContactsPage from './pages/ContactsPage/ContactsPage';
 import ConsultationsPage from './pages/ConsultationsPage/ConsultationsPage';
 import ServicesPage from './pages/ServicesPage/ServicesPage'; 
@@ -49,8 +51,9 @@ function HomePage() {
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <div className="app">
+      <InfoModalProvider>
+        <Router>
+          <div className="app">
           <Header />
           <main className="app-main">
             <Routes>
@@ -65,6 +68,11 @@ function App() {
                   <ProfilePage />
                 </ProtectedRoute>
               } />
+              <Route path="/profile/security" element={
+                <ProtectedRoute>
+                  <SecuritySettingsPage />
+                </ProtectedRoute>
+              } />
               <Route path="/contacts" element={<ContactsPage />} />
               <Route path="/consultations" element={<ConsultationsPage />} />
               <Route path="/services" element={<ServicesPage />} /> 
@@ -74,8 +82,9 @@ function App() {
             </Routes>
           </main>
           <Footer />
-        </div>
-      </Router>
+          </div>
+        </Router>
+      </InfoModalProvider>
     </AuthProvider>
   );
 }
