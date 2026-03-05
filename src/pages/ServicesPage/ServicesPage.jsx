@@ -128,9 +128,10 @@ const ServicesPage = () => {
     (d) => currentUser?.type !== 'doctor' || Number(d.id) !== Number(currentUser?.id)
   );
   const availableDates = availableSlots?.available ?? [];
-  const availableTimesForDate = bookingDate
-    ? (availableDates.find((a) => a.date === bookingDate)?.slots ?? [])
-    : [];
+  const dayData = bookingDate ? availableDates.find((a) => a.date === bookingDate) : null;
+  const freeSlotsForDate = dayData?.slots ?? [];
+  const bookedSlotsForDate = dayData?.bookedSlots ?? [];
+  const allTimesForDate = [...freeSlotsForDate, ...bookedSlotsForDate].sort();
 
   // Загрузка слотов при выборе врача
   useEffect(() => {
@@ -188,6 +189,7 @@ const ServicesPage = () => {
 
   const handleConfirmBooking = () => {
     if (!bookingDoctor?.id || !bookingDate || !bookingTime) return;
+    if (bookedSlotsForDate.includes(bookingTime)) return;
     setBookingError('');
     setBookingSubmitting(true);
     createAppointment({
@@ -579,20 +581,25 @@ const ServicesPage = () => {
                       <p className="service-booking-empty">Нет доступных дат на ближайшие 4 недели</p>
                     ) : (
                       <div className="service-booking-dates">
-                        {availableDates.map((a) => (
-                          <button
-                            key={a.date}
-                            type="button"
-                            className={`service-booking-date-btn ${bookingDate === a.date ? 'selected' : ''}`}
-                            onClick={() => handleBookingDateSelect(a.date)}
-                          >
-                            {new Date(a.date + 'T12:00:00').toLocaleDateString('ru-RU', {
-                              weekday: 'short',
-                              day: 'numeric',
-                              month: 'short',
-                            })}
-                          </button>
-                        ))}
+                        {availableDates.map((a) => {
+                          const isDateFullyBooked = (a.slots?.length ?? 0) === 0 && (a.bookedSlots?.length ?? 0) > 0;
+                          return (
+                            <button
+                              key={a.date}
+                              type="button"
+                              className={`service-booking-date-btn ${bookingDate === a.date ? 'selected' : ''} ${isDateFullyBooked ? 'disabled' : ''}`}
+                              disabled={isDateFullyBooked}
+                              title={isDateFullyBooked ? 'Дата забронирована' : undefined}
+                              onClick={() => !isDateFullyBooked && handleBookingDateSelect(a.date)}
+                            >
+                              {new Date(a.date + 'T12:00:00').toLocaleDateString('ru-RU', {
+                                weekday: 'short',
+                                day: 'numeric',
+                                month: 'short',
+                              })}
+                            </button>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -614,20 +621,25 @@ const ServicesPage = () => {
                         <Loader2 size={24} className="service-booking-spinner" />
                         <span>Загрузка времени…</span>
                       </div>
-                    ) : availableTimesForDate.length === 0 ? (
+                    ) : allTimesForDate.length === 0 ? (
                       <p className="service-booking-empty">Нет доступного времени на эту дату</p>
                     ) : (
                       <div className="service-booking-times">
-                        {availableTimesForDate.map((time) => (
-                          <button
-                            key={time}
-                            type="button"
-                            className={`service-booking-time-btn ${bookingTime === time ? 'selected' : ''}`}
-                            onClick={() => setBookingTime(time)}
-                          >
-                            {time}
-                          </button>
-                        ))}
+                        {allTimesForDate.map((time) => {
+                          const isBooked = bookedSlotsForDate.includes(time);
+                          return (
+                            <button
+                              key={time}
+                              type="button"
+                              className={`service-booking-time-btn ${bookingTime === time ? 'selected' : ''} ${isBooked ? 'disabled' : ''}`}
+                              disabled={isBooked}
+                              title={isBooked ? 'Дата забронирована' : undefined}
+                              onClick={() => !isBooked && setBookingTime(time)}
+                            >
+                              {time}
+                            </button>
+                          );
+                        })}
                       </div>
                     )}
                     {bookingError && <p className="service-booking-error">{bookingError}</p>}

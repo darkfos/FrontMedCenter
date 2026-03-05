@@ -293,8 +293,8 @@ const ContactsPage = () => {
                     Для получения информации звоните по телефону или посетите наш сайт.
                   </p>
                   <div className="website-link">
-                    <a href="https://medicare-clinic.ru" target="_blank" rel="noopener noreferrer">
-                      medicare-clinic.ru
+                    <a href="https://medicare.com.ru" target="_blank" rel="noopener noreferrer">
+                      medicare.com.ru
                     </a>
                   </div>
                 </div>

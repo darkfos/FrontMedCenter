@@ -940,6 +940,35 @@
   color: white;
 }
 
+.doctor-detail-date-button.disabled,
+.doctor-detail-time-button.disabled,
+.doctor-detail-date-button:disabled,
+.doctor-detail-time-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+  color: #94a3b8;
+}
+
+.doctor-detail-date-button.disabled:hover,
+.doctor-detail-time-button.disabled:hover,
+.doctor-detail-date-button:disabled:hover,
+.doctor-detail-time-button:disabled:hover {
+  border-color: #e2e8f0;
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+
+.doctor-detail-booking-error {
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background: #fef2f2;
+  color: #b91c1c;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+}
+
 /* Форма данных */
 .doctor-detail-booking-summary {
   background: #f8fafc;

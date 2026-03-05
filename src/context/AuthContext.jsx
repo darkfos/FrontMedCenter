@@ -5,19 +5,26 @@ const AuthContext = createContext();
 
 const USER_TYPE_MAP = {
   pacient: 'patient',
+  patient: 'patient',
   admin: 'admin',
   doctor: 'doctor',
   nurse: 'nurse',
 };
 
-/** Нормализует пользователя с API (fullName, userType, certificates) в форму для UI */
+/** Нормализует пользователя с API (fullName, userType, isAdmin, certificates) в форму для UI */
 function normalizeUser(user) {
   if (!user) return user;
   const fullName = user.fullName || '';
   const parts = fullName.trim().split(/\s+/);
   const firstName = user.firstName ?? parts[0] ?? '';
   const lastName = user.lastName ?? parts.slice(1).join(' ') ?? '';
-  const type = user.type ?? USER_TYPE_MAP[user.userType] ?? (user.isAdmin ? 'admin' : 'patient');
+  const rawUserType = user.userType != null ? String(user.userType).toLowerCase() : '';
+  const typeFromUserType = USER_TYPE_MAP[rawUserType];
+  const type =
+    user.type ??
+    (user.isAdmin === true ? 'admin' : null) ??
+    typeFromUserType ??
+    'patient';
   const license = user.certificates?.[0] ?? user.license ?? '';
   return {
     ...user,
@@ -27,6 +34,7 @@ function normalizeUser(user) {
     type,
     license,
     certificates: user.certificates ?? [],
+    isAdmin: user.isAdmin === true,
   };
 }
 

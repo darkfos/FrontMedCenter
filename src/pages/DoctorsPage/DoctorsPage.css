@@ -884,3 +884,227 @@ input, textarea, .doctor-description, .doctors-description, .cta-content p {
     font-size: 13px;
   }
 }
+
+/* Модальное окно записи на приём */
+.doctors-booking-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.doctors-booking-modal {
+  background: white;
+  border-radius: 1rem;
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+}
+
+.doctors-booking-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 1.5rem 1.5rem 1rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.doctors-booking-header-content h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0 0 0.25rem 0;
+  color: #1e293b;
+}
+
+.doctors-booking-subtitle {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.doctors-booking-close {
+  background: none;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  transition: all 0.2s ease;
+  font-family: 'Inter', sans-serif;
+}
+
+.doctors-booking-close:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+.doctors-booking-content {
+  padding: 1.5rem;
+}
+
+.doctors-booking-step {
+  padding: 0.5rem 0;
+}
+
+.doctors-booking-step h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.doctors-booking-step-desc {
+  margin: 0 0 1rem;
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.doctors-booking-dates,
+.doctors-booking-times {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.doctors-booking-date-btn,
+.doctors-booking-time-btn {
+  padding: 0.6rem 1rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 0.5rem;
+  background: #fff;
+  color: #334155;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.doctors-booking-date-btn:hover,
+.doctors-booking-time-btn:hover {
+  border-color: #10b981;
+  background: #f0fdf4;
+  color: #059669;
+}
+
+.doctors-booking-date-btn.selected,
+.doctors-booking-time-btn.selected {
+  border-color: #10b981;
+  background: #10b981;
+  color: white;
+}
+
+.doctors-booking-date-btn.disabled,
+.doctors-booking-time-btn.disabled,
+.doctors-booking-date-btn:disabled,
+.doctors-booking-time-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+  color: #94a3b8;
+}
+
+.doctors-booking-date-btn.disabled:hover,
+.doctors-booking-time-btn.disabled:hover,
+.doctors-booking-date-btn:disabled:hover,
+.doctors-booking-time-btn:disabled:hover {
+  border-color: #e2e8f0;
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+
+.doctors-booking-loading,
+.doctors-booking-empty {
+  padding: 1.5rem;
+  text-align: center;
+  color: #64748b;
+  font-size: 0.9375rem;
+}
+
+.doctors-booking-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.doctors-booking-spinner {
+  animation: doctors-booking-spin 0.8s linear infinite;
+}
+
+@keyframes doctors-booking-spin {
+  to { transform: rotate(360deg); }
+}
+
+.doctors-booking-error {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: #fef2f2;
+  color: #b91c1c;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.doctors-booking-actions {
+  display: flex;
+  gap: 1rem;
+  padding-top: 1.5rem;
+  margin-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.doctors-booking-back {
+  padding: 0.75rem 1.5rem;
+  background: white;
+  border: 2px solid #e2e8f0;
+  border-radius: 0.75rem;
+  color: #64748b;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'Inter', sans-serif;
+}
+
+.doctors-booking-back:hover {
+  border-color: #94a3b8;
+  background: #f8fafc;
+}
+
+.doctors-booking-confirm {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.5rem;
+  background: linear-gradient(90deg, #10b981, #059669);
+  border: none;
+  border-radius: 0.75rem;
+  color: white;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex: 1;
+  font-family: 'Inter', sans-serif;
+}
+
+.doctors-booking-confirm:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+}
+
+.doctors-booking-confirm:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}

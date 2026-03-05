@@ -153,4 +153,68 @@ export class AuthAPI {
         const { data } = await api.patch(`${AuthAPI.PREFIX_USER}/me/renewal-requests/${requestId}`, { status });
         return data;
     }
+
+    /** GET /me/tasks — задачи на дату для медсестры (page, pageSize, filter: all|high_priority|completed, date). */
+    static async getMyTasks(page = 1, pageSize = 10, filter = 'all', date) {
+        const params = { page, pageSize, filter };
+        if (date) params.date = date;
+        const { data } = await api.get(`${AuthAPI.PREFIX_USER}/me/tasks`, { params });
+        return data;
+    }
+
+    /** POST /me/tasks — создать задачу (медсестра). */
+    static async createMyTask(body) {
+        const { data } = await api.post(`${AuthAPI.PREFIX_USER}/me/tasks`, body);
+        return data;
+    }
+
+    /** PATCH /me/tasks/:id/complete — отметить задачу выполненной. */
+    static async completeMyTask(taskId) {
+        const { data } = await api.patch(`${AuthAPI.PREFIX_USER}/me/tasks/${taskId}/complete`);
+        return data;
+    }
+
+    /** PATCH /me/tasks/:id/note — сохранить заметку к задаче (body: { note }). */
+    static async setMyTaskNote(taskId, note) {
+        const { data } = await api.patch(`${AuthAPI.PREFIX_USER}/me/tasks/${taskId}/note`, { note });
+        return data;
+    }
+
+    /** GET /me/shift-stats — статистика за смену (медсестра). Параметр date (YYYY-MM-DD). */
+    static async getMyShiftStats(date) {
+        const params = date ? { date } : {};
+        const { data } = await api.get(`${AuthAPI.PREFIX_USER}/me/shift-stats`, { params });
+        return data;
+    }
+
+    /** GET /me/shift-journal — все задачи за дату для отчёта (медсестра). Параметр date (YYYY-MM-DD). */
+    static async getMyShiftJournal(date) {
+        const params = date ? { date } : {};
+        const { data } = await api.get(`${AuthAPI.PREFIX_USER}/me/shift-journal`, { params });
+        return data;
+    }
+
+    /** GET /me/inventory — список расходников (медсестра). */
+    static async getMyInventory() {
+        const { data } = await api.get(`${AuthAPI.PREFIX_USER}/me/inventory`);
+        return data;
+    }
+
+    /** POST /me/inventory — добавить позицию (name, quantity?, threshold?). */
+    static async createInventoryItem(body) {
+        const { data } = await api.post(`${AuthAPI.PREFIX_USER}/me/inventory`, body);
+        return data;
+    }
+
+    /** PATCH /me/inventory/:id/add — добавить к количеству (body: { amount }). */
+    static async addInventoryQuantity(id, amount = 10) {
+        const { data } = await api.patch(`${AuthAPI.PREFIX_USER}/me/inventory/${id}/add`, { amount });
+        return data;
+    }
+
+    /** PATCH /me/inventory/:id — обновить позицию (name?, quantity?, threshold?). */
+    static async updateInventoryItem(id, body) {
+        const { data } = await api.patch(`${AuthAPI.PREFIX_USER}/me/inventory/${id}`, body);
+        return data;
+    }
 }

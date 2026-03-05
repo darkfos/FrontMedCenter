@@ -62,6 +62,170 @@ import {
 } from '../../utils/csvReport';
 import './ProfilePage.css';
 
+function InventoryAddModal({ onClose, onSuccess, openInfo }) {
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ name: '', quantity: 0, threshold: 0 });
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.name.trim()) return;
+    setSaving(true);
+    try {
+      await AuthAPI.createInventoryItem({
+        name: form.name.trim(),
+        quantity: form.quantity >= 0 ? form.quantity : 0,
+        threshold: form.threshold >= 0 ? form.threshold : 0,
+      });
+      openInfo({ title: 'Готово', message: 'Позиция добавлена.', variant: 'success' });
+      onSuccess();
+    } catch (err) {
+      openInfo({ title: 'Ошибка', message: err?.response?.data?.message || 'Не удалось добавить позицию.', variant: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div className="patient-modal-overlay active">
+      <div className="patient-modal" style={{ maxWidth: 440 }}>
+        <div className="patient-modal-header">
+          <h3 className="patient-modal-title">Добавить позицию</h3>
+          <button type="button" className="patient-modal-close" onClick={onClose}>
+            <X size={20} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="patient-modal-content">
+          <input
+            className="prescription-input"
+            placeholder="Название (например: Шприцы 5мл)"
+            value={form.name}
+            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+            required
+          />
+          <input
+            type="number"
+            min={0}
+            className="prescription-input"
+            placeholder="Начальное количество"
+            value={form.quantity === 0 ? '' : form.quantity}
+            onChange={(e) => setForm((f) => ({ ...f, quantity: parseInt(e.target.value, 10) || 0 }))}
+          />
+          <input
+            type="number"
+            min={0}
+            className="prescription-input"
+            placeholder="Минимальный запас"
+            value={form.threshold === 0 ? '' : form.threshold}
+            onChange={(e) => setForm((f) => ({ ...f, threshold: parseInt(e.target.value, 10) || 0 }))}
+          />
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+            <button type="submit" className="add-button" disabled={saving}>
+              {saving ? 'Добавление…' : 'Добавить'}
+            </button>
+            <button type="button" className="finance-card-btn secondary" onClick={onClose}>
+              Отмена
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function NurseNewTaskModal({ onClose, onSuccess, openInfo }) {
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    patientName: '',
+    description: '',
+    room: '',
+    scheduledTime: '08:00',
+    taskDate: new Date().toISOString().split('T')[0],
+    priority: 'normal',
+  });
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await AuthAPI.createMyTask({
+        patientName: form.patientName,
+        description: form.description,
+        room: form.room || undefined,
+        scheduledTime: form.scheduledTime,
+        taskDate: form.taskDate,
+        priority: form.priority,
+      });
+      openInfo({ title: 'Готово', message: 'Задача создана.', variant: 'success' });
+      onSuccess();
+    } catch (err) {
+      openInfo({ title: 'Ошибка', message: err?.response?.data?.message || 'Не удалось создать задачу.', variant: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div className="patient-modal-overlay active">
+      <div className="patient-modal" style={{ maxWidth: 520 }}>
+        <div className="patient-modal-header">
+          <h3 className="patient-modal-title">Новая задача</h3>
+          <button type="button" className="patient-modal-close" onClick={onClose}>
+            <X size={20} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="patient-modal-content">
+          <input
+            className="prescription-input"
+            placeholder="ФИО пациента"
+            value={form.patientName}
+            onChange={(e) => setForm((f) => ({ ...f, patientName: e.target.value }))}
+            required
+          />
+          <input
+            className="prescription-input"
+            placeholder="Описание процедуры"
+            value={form.description}
+            onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+            required
+          />
+          <input
+            className="prescription-input"
+            placeholder="Палата / кабинет"
+            value={form.room}
+            onChange={(e) => setForm((f) => ({ ...f, room: e.target.value }))}
+          />
+          <input
+            type="time"
+            className="prescription-input"
+            value={form.scheduledTime}
+            onChange={(e) => setForm((f) => ({ ...f, scheduledTime: e.target.value }))}
+            required
+          />
+          <input
+            type="date"
+            className="prescription-input"
+            value={form.taskDate}
+            onChange={(e) => setForm((f) => ({ ...f, taskDate: e.target.value }))}
+            required
+          />
+          <select
+            className="prescription-input"
+            value={form.priority}
+            onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}
+          >
+            <option value="normal">Обычный приоритет</option>
+            <option value="high">Высокий приоритет</option>
+          </select>
+          <div class="prescription-btn" style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+            <button type="submit" className="add-button" disabled={saving}>
+              {saving ? 'Создание…' : 'Создать задачу'}
+            </button>
+            <button type="button" className="finance-card-btn secondary" onClick={onClose}>
+              Отмена
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 const ProfilePage = () => {
   const navigate = useNavigate();
   const { currentUser, logout, updateUser, refreshUser } = useAuth();
@@ -283,43 +447,28 @@ const ProfilePage = () => {
   const [prescriptionRenewalRequests, setPrescriptionRenewalRequests] = useState([]);
   const [renewRequestSending, setRenewRequestSending] = useState(null);
 
-  // Данные для медсестры
-  const [nurseTasks, setNurseTasks] = useState([
-    {
-      id: 1,
-      patient: 'Иванова Анна Сергеевна',
-      room: 'Палата 301',
-      procedure: 'Измерение давления',
-      time: '08:00',
-      priority: 'high',
-      status: 'pending'
-    },
-    {
-      id: 2,
-      patient: 'Петров Сергей Иванович',
-      room: 'Палата 205',
-      procedure: 'Введение инсулина',
-      time: '09:30',
-      priority: 'high',
-      status: 'pending'
-    },
-    {
-      id: 3,
-      patient: 'Сидорова Мария Петровна',
-      room: 'Палата 108',
-      procedure: 'Перевязка',
-      time: '11:00',
-      priority: 'medium',
-      status: 'completed'
-    }
-  ]);
+  // Данные для медсестры: задачи на сегодня
+  const [nurseTasks, setNurseTasks] = useState({ list: [], total: 0, pageSize: 10 });
+  const [nurseTasksPage, setNurseTasksPage] = useState(1);
+  const [nurseTasksFilter, setNurseTasksFilter] = useState('all');
+  const [nurseTasksLoading, setNurseTasksLoading] = useState(false);
+  const [nurseTaskCompletingId, setNurseTaskCompletingId] = useState(null);
+  const [nurseNoteModal, setNurseNoteModal] = useState(null); // { taskId, currentNote }
+  const [nurseNoteSaving, setNurseNoteSaving] = useState(false);
+  const [nurseNewTaskModal, setNurseNewTaskModal] = useState(false);
+  const nurseTasksPageSize = 10;
 
-  const [inventory, setInventory] = useState([
-    { id: 1, item: 'Шприцы 5мл', quantity: 150, threshold: 50 },
-    { id: 2, item: 'Перчатки L', quantity: 200, threshold: 100 },
-    { id: 3, item: 'Бинты стерильные', quantity: 75, threshold: 50 },
-    { id: 4, item: 'Антисептик', quantity: 30, threshold: 20 }
-  ]);
+  const [inventory, setInventory] = useState([]);
+  const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [inventoryAddQuantityId, setInventoryAddQuantityId] = useState(null);
+  const [inventoryAddModal, setInventoryAddModal] = useState(false);
+
+  const [nurseShiftStats, setNurseShiftStats] = useState({
+    proceduresCompleted: 0,
+    patientsServed: 0,
+    workingTimeMinutes: 0,
+  });
+  const [nurseShiftStatsLoading, setNurseShiftStatsLoading] = useState(false);
 
   // Данные для администратора (статистика и запросы на утверждение — с бэкенда)
   const [systemStats, setSystemStats] = useState({
@@ -536,6 +685,118 @@ const ProfilePage = () => {
       .finally(() => { if (!cancelled) setCardDataLoading(false); });
     return () => { cancelled = true; };
   }, [currentUser?.type, selectedPatient?.id, isPatientModalOpen]);
+
+  // Загрузка задач медсестры на сегодня
+  useEffect(() => {
+    if (currentUser?.type !== 'nurse') return;
+    let cancelled = false;
+    setNurseTasksLoading(true);
+    const today = new Date().toISOString().split('T')[0];
+    AuthAPI.getMyTasks(nurseTasksPage, nurseTasksPageSize, nurseTasksFilter, today)
+      .then((res) => {
+        if (cancelled) return;
+        setNurseTasks({
+          list: res?.list ?? [],
+          total: res?.total ?? 0,
+          pageSize: res?.pageSize ?? nurseTasksPageSize,
+        });
+      })
+      .catch(() => { if (!cancelled) setNurseTasks((p) => ({ ...p, list: [] })); })
+      .finally(() => { if (!cancelled) setNurseTasksLoading(false); });
+    return () => { cancelled = true; };
+  }, [currentUser?.type, nurseTasksPage, nurseTasksFilter]);
+
+  const fetchInventory = React.useCallback(() => {
+    if (currentUser?.type !== 'nurse') return;
+    setInventoryLoading(true);
+    AuthAPI.getMyInventory()
+      .then((res) => setInventory(res?.list ?? []))
+      .catch(() => setInventory([]))
+      .finally(() => setInventoryLoading(false));
+  }, [currentUser?.type]);
+
+  useEffect(() => {
+    if (currentUser?.type !== 'nurse') return;
+    fetchInventory();
+  }, [currentUser?.type, fetchInventory]);
+
+  const fetchNurseShiftStats = React.useCallback(() => {
+    if (currentUser?.type !== 'nurse') return;
+    setNurseShiftStatsLoading(true);
+    const today = new Date().toISOString().split('T')[0];
+    AuthAPI.getMyShiftStats(today)
+      .then((data) =>
+        setNurseShiftStats({
+          proceduresCompleted: data?.proceduresCompleted ?? 0,
+          patientsServed: data?.patientsServed ?? 0,
+          workingTimeMinutes: data?.workingTimeMinutes ?? 0,
+        })
+      )
+      .catch(() => setNurseShiftStats({ proceduresCompleted: 0, patientsServed: 0, workingTimeMinutes: 0 }))
+      .finally(() => setNurseShiftStatsLoading(false));
+  }, [currentUser?.type]);
+
+  useEffect(() => {
+    if (currentUser?.type !== 'nurse') return;
+    fetchNurseShiftStats();
+  }, [currentUser?.type, fetchNurseShiftStats]);
+
+  const downloadShiftReport = async () => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const { list } = await AuthAPI.getMyShiftJournal(today);
+      const rows = (list || []).map((t) => [
+        t.patientName,
+        t.description,
+        t.room || '',
+        t.scheduledTime,
+        t.priority,
+        t.status,
+        t.completedAt || '',
+      ]);
+      const header = ['Пациент', 'Процедура', 'Палата', 'Время', 'Приоритет', 'Статус', 'Выполнено'];
+      const csv = [header, ...rows].map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `сменный-отчет-${today}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      openInfo({ title: 'Готово', message: 'Сменный отчёт скачан.', variant: 'success' });
+    } catch (e) {
+      openInfo({ title: 'Ошибка', message: e?.response?.data?.message || 'Не удалось сформировать отчёт.', variant: 'error' });
+    }
+  };
+
+  const downloadShiftJournal = async () => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const { list } = await AuthAPI.getMyShiftJournal(today);
+      const rows = (list || []).map((t) => [
+        t.id,
+        t.patientName,
+        t.description,
+        t.room || '',
+        t.scheduledTime,
+        t.priority,
+        t.status,
+        t.completedAt || '',
+      ]);
+      const header = ['ID', 'Пациент', 'Процедура', 'Палата', 'Время', 'Приоритет', 'Статус', 'Выполнено'];
+      const csv = [header, ...rows].map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `журнал-задач-${today}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      openInfo({ title: 'Готово', message: 'Журнал скачан.', variant: 'success' });
+    } catch (e) {
+      openInfo({ title: 'Ошибка', message: e?.response?.data?.message || 'Не удалось скачать журнал.', variant: 'error' });
+    }
+  };
 
   // Загрузка списка пациентов в модалке выбора (для назначение/анализы)
   useEffect(() => {
@@ -978,32 +1239,58 @@ const ProfilePage = () => {
   };
 
   // Функционал для медсестры
-  const completeTask = (id) => {
-    setNurseTasks(prev => 
-      prev.map(task => 
-        task.id === id ? { ...task, status: 'completed', completedAt: new Date().toLocaleTimeString() } : task
-      )
-    );
+  const completeTask = async (id) => {
+    setNurseTaskCompletingId(id);
+    try {
+      await AuthAPI.completeMyTask(id);
+      openInfo({ title: 'Готово', message: 'Задача отмечена выполненной.', variant: 'success' });
+      const today = new Date().toISOString().split('T')[0];
+      const res = await AuthAPI.getMyTasks(nurseTasksPage, nurseTasksPageSize, nurseTasksFilter, today);
+      setNurseTasks({ list: res?.list ?? [], total: res?.total ?? 0, pageSize: res?.pageSize ?? nurseTasksPageSize });
+      fetchNurseShiftStats();
+    } catch (e) {
+      openInfo({ title: 'Ошибка', message: e?.response?.data?.message || 'Не удалось отметить задачу.', variant: 'error' });
+    } finally {
+      setNurseTaskCompletingId(null);
+    }
   };
 
-  const addTaskNote = (id, note) => {
-    setNurseTasks(prev =>
-      prev.map(task =>
-        task.id === id ? { ...task, note } : task
-      )
-    );
+  const openTaskNoteModal = (taskId, currentNote) => {
+    setNurseNoteModal({ taskId, currentNote: currentNote || '' });
   };
 
-  const updateInventory = (id, quantity) => {
-    setInventory(prev =>
-      prev.map(item =>
-        item.id === id ? { ...item, quantity } : item
-      )
-    );
+  const saveTaskNote = async () => {
+    if (!nurseNoteModal?.taskId) return;
+    setNurseNoteSaving(true);
+    try {
+      await AuthAPI.setMyTaskNote(nurseNoteModal.taskId, nurseNoteModal.currentNote);
+      openInfo({ title: 'Готово', message: 'Заметка сохранена.', variant: 'success' });
+      setNurseNoteModal(null);
+      const today = new Date().toISOString().split('T')[0];
+      const res = await AuthAPI.getMyTasks(nurseTasksPage, nurseTasksPageSize, nurseTasksFilter, today);
+      setNurseTasks({ list: res?.list ?? [], total: res?.total ?? 0, pageSize: res?.pageSize ?? nurseTasksPageSize });
+    } catch (e) {
+      openInfo({ title: 'Ошибка', message: e?.response?.data?.message || 'Не удалось сохранить заметку.', variant: 'error' });
+    } finally {
+      setNurseNoteSaving(false);
+    }
   };
 
-  const requestSupply = (item) => {
-    openInfo({ title: 'Запрос на пополнение', message: `Запрос на пополнение: ${item}`, variant: 'info' });
+  const addInventoryQuantity = async (id, amount = 10) => {
+    setInventoryAddQuantityId(id);
+    try {
+      await AuthAPI.addInventoryQuantity(id, amount);
+      openInfo({ title: 'Готово', message: 'Количество обновлено.', variant: 'success' });
+      fetchInventory();
+    } catch (e) {
+      openInfo({ title: 'Ошибка', message: e?.response?.data?.message || 'Не удалось обновить количество.', variant: 'error' });
+    } finally {
+      setInventoryAddQuantityId(null);
+    }
+  };
+
+  const requestSupply = (itemName) => {
+    openInfo({ title: 'Запрос на пополнение', message: `Запрос на пополнение: ${itemName}`, variant: 'info' });
   };
 
   // Функционал для администратора: утверждение/отклонение регистрации
@@ -1175,10 +1462,6 @@ const ProfilePage = () => {
     } finally {
       setResetPasswordsSaving(false);
     }
-  };
-
-  const openNotificationSettings = () => {
-    openInfo({ title: 'Настройки уведомлений', message: 'Функция в разработке.', variant: 'info' });
   };
 
   const patientCardModalContent = selectedPatient && (
@@ -1777,7 +2060,11 @@ const ProfilePage = () => {
             <Activity size={18} />
             Задачи на сегодня
           </h3>
-          <button className="profile-section-action">
+          <button
+            type="button"
+            className="profile-section-action"
+            onClick={() => setNurseNewTaskModal(true)}
+          >
             <Plus size={16} />
             Новая задача
           </button>
@@ -1785,56 +2072,111 @@ const ProfilePage = () => {
         
         <div className="tasks-panel">
           <div className="tasks-filters">
-            <button className="filter-btn active">Все ({nurseTasks.length})</button>
-            <button className="filter-btn">Высокий приоритет</button>
-            <button className="filter-btn">Завершенные</button>
+            <button
+              type="button"
+              className={`filter-btn ${nurseTasksFilter === 'all' ? 'active' : ''}`}
+              onClick={() => { setNurseTasksFilter('all'); setNurseTasksPage(1); }}
+            >
+              Все{nurseTasksFilter === 'all' ? ` (${nurseTasks.total})` : ''}
+            </button>
+            <button
+              type="button"
+              className={`filter-btn ${nurseTasksFilter === 'high_priority' ? 'active' : ''}`}
+              onClick={() => { setNurseTasksFilter('high_priority'); setNurseTasksPage(1); }}
+            >
+              Высокий приоритет{nurseTasksFilter === 'high_priority' ? ` (${nurseTasks.total})` : ''}
+            </button>
+            <button
+              type="button"
+              className={`filter-btn ${nurseTasksFilter === 'completed' ? 'active' : ''}`}
+              onClick={() => { setNurseTasksFilter('completed'); setNurseTasksPage(1); }}
+            >
+              Завершенные{nurseTasksFilter === 'completed' ? ` (${nurseTasks.total})` : ''}
+            </button>
           </div>
           
           <div className="tasks-list">
-            {nurseTasks.map(task => (
-              <div key={task.id} className={`task-card task-priority-${task.priority}`}>
-                <div className="task-header">
-                  <div className="task-patient">
-                    <User size={14} />
-                    {task.patient}
-                  </div>
-                  <div className="task-time">{task.time}</div>
-                </div>
-                <div className="task-content">
-                  <div className="task-procedure">{task.procedure}</div>
-                  <div className="task-room">{task.room}</div>
-                  {task.note && (
-                    <div className="task-note">{task.note}</div>
-                  )}
-                </div>
-                <div className="task-actions">
-                  {task.status === 'pending' ? (
-                    <>
-                      <button 
-                        className="task-action-btn success"
-                        onClick={() => completeTask(task.id)}
-                      >
-                        <CheckCircle size={14} />
-                        Выполнено
-                      </button>
-                      <button 
-                        className="task-action-btn"
-                        onClick={() => addTaskNote(task.id, prompt('Добавить примечание:'))}
-                      >
-                        <Edit3 size={14} />
-                        Заметка
-                      </button>
-                    </>
-                  ) : (
-                    <div className="task-completed">
-                      <CheckCircle size={14} />
-                      Выполнено в {task.completedAt}
+            {nurseTasksLoading ? (
+              <div className="profile-loading-msg">Загрузка задач…</div>
+            ) : nurseTasks.list.length === 0 ? (
+              <div className="profile-empty-msg">Нет задач на сегодня.</div>
+            ) : (
+              nurseTasks.list.map((task) => (
+                <div key={task.id} className={`task-card task-priority-${task.priority || 'normal'}`}>
+                  <div className="task-header">
+                    <div className="task-patient">
+                      <User size={14} />
+                      {task.patientName}
                     </div>
-                  )}
+                    <div className="task-time">{task.scheduledTime}</div>
+                  </div>
+                  <div className="task-content">
+                    <div className="task-procedure">{task.description}</div>
+                    <div className="task-room">{task.room || '—'}</div>
+                    {task.note && (
+                      <div className="task-note">{task.note}</div>
+                    )}
+                  </div>
+                  <div className="task-actions">
+                    {task.status === 'pending' ? (
+                      <>
+                        <button
+                          type="button"
+                          className="task-action-btn success"
+                          disabled={nurseTaskCompletingId === task.id}
+                          onClick={() => completeTask(task.id)}
+                        >
+                          <CheckCircle size={14} />
+                          {nurseTaskCompletingId === task.id ? '…' : 'Выполнено'}
+                        </button>
+                        <button
+                          type="button"
+                          className="task-action-btn"
+                          onClick={() => openTaskNoteModal(task.id, task.note)}
+                        >
+                          <Edit3 size={14} />
+                          Заметка
+                        </button>
+                      </>
+                    ) : (
+                      <div className="task-completed">
+                        <CheckCircle size={14} />
+                        Выполнено{task.completedAt ? ` в ${task.completedAt.slice(11, 16)}` : ''}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
+          {nurseTasks.total > nurseTasksPageSize && (
+            <div className="doctor-patients-pagination" style={{ marginTop: '1rem' }}>
+              <span className="doctor-patients-pagination-info">
+                {((nurseTasksPage - 1) * nurseTasksPageSize) + 1}–{Math.min(nurseTasksPage * nurseTasksPageSize, nurseTasks.total)} из {nurseTasks.total}
+              </span>
+              <div className="doctor-patients-pagination-buttons">
+                <button
+                  type="button"
+                  className="doctor-patients-pagination-btn"
+                  disabled={nurseTasksLoading || nurseTasksPage <= 1}
+                  onClick={() => setNurseTasksPage((p) => Math.max(1, p - 1))}
+                >
+                  Назад
+                </button>
+                <span className="doctor-patients-pagination-page">
+                  Страница {nurseTasksPage} из {Math.max(1, Math.ceil(nurseTasks.total / nurseTasksPageSize))}
+                </span>
+                <button
+                  type="button"
+                  className="doctor-patients-pagination-btn"
+                  disabled={nurseTasksLoading || nurseTasksPage >= Math.ceil(nurseTasks.total / nurseTasksPageSize)}
+                  onClick={() => setNurseTasksPage((p) => p + 1)}
+                >
+                  Вперёд
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1844,7 +2186,11 @@ const ProfilePage = () => {
             <ClipboardList size={18} />
             Инвентарь и расходники
           </h3>
-          <button className="profile-section-action">
+          <button
+            type="button"
+            className="profile-section-action"
+            onClick={() => setInventoryAddModal(true)}
+          >
             <Plus size={16} />
             Добавить позицию
           </button>
@@ -1853,49 +2199,58 @@ const ProfilePage = () => {
         <div className="inventory-panel">
           <div className="inventory-summary">
             <div className="inventory-stat">
-              <div className="stat-value">{inventory.length}</div>
+              <div className="stat-value">{inventoryLoading ? '—' : inventory.length}</div>
               <div className="stat-label">Позиций</div>
             </div>
             <div className="inventory-stat warning">
               <div className="stat-value">
-                {inventory.filter(item => item.quantity <= item.threshold).length}
+                {inventoryLoading ? '—' : inventory.filter((item) => item.quantity <= item.threshold).length}
               </div>
               <div className="stat-label">Требуют пополнения</div>
             </div>
           </div>
           
           <div className="inventory-list">
-            {inventory.map(item => (
-              <div key={item.id} className={`inventory-item ${item.quantity <= item.threshold ? 'low-stock' : ''}`}>
-                <div className="inventory-info">
-                  <div className="inventory-name">{item.item}</div>
-                  <div className="inventory-quantity">
-                    Количество: <span>{item.quantity}</span>
+            {inventoryLoading ? (
+              <div className="profile-loading-msg">Загрузка инвентаря…</div>
+            ) : inventory.length === 0 ? (
+              <div className="profile-empty-msg">Нет позиций. Добавьте первую.</div>
+            ) : (
+              inventory.map((item) => (
+                <div key={item.id} className={`inventory-item ${item.quantity <= item.threshold ? 'low-stock' : ''}`}>
+                  <div className="inventory-info">
+                    <div className="inventory-name">{item.name}</div>
+                    <div className="inventory-quantity">
+                      Количество: <span>{item.quantity}</span>
+                    </div>
+                    <div className="inventory-threshold">
+                      Минимальный запас: {item.threshold}
+                    </div>
                   </div>
-                  <div className="inventory-threshold">
-                    Минимальный запас: {item.threshold}
-                  </div>
-                </div>
-                <div className="inventory-actions">
-                  <button 
-                    className="inventory-action-btn"
-                    onClick={() => updateInventory(item.id, item.quantity + 10)}
-                  >
-                    <Plus size={14} />
-                    Добавить
-                  </button>
-                  {item.quantity <= item.threshold && (
-                    <button 
-                      className="inventory-action-btn warning"
-                      onClick={() => requestSupply(item.item)}
+                  <div className="inventory-actions">
+                    <button
+                      type="button"
+                      className="inventory-action-btn"
+                      disabled={inventoryAddQuantityId === item.id}
+                      onClick={() => addInventoryQuantity(item.id, 10)}
                     >
-                      <AlertCircle size={14} />
-                      Заказать
+                      <Plus size={14} />
+                      {inventoryAddQuantityId === item.id ? '…' : 'Добавить'}
                     </button>
-                  )}
+                    {item.quantity <= item.threshold && (
+                      <button
+                        type="button"
+                        className="inventory-action-btn warning"
+                        onClick={() => requestSupply(item.name)}
+                      >
+                        <AlertCircle size={14} />
+                        Заказать
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -1911,7 +2266,7 @@ const ProfilePage = () => {
               <Activity size={24} />
             </div>
             <div className="stat-content">
-              <div className="stat-value">14</div>
+              <div className="stat-value">{nurseShiftStatsLoading ? '—' : nurseShiftStats.proceduresCompleted}</div>
               <div className="stat-label">Процедур выполнено</div>
             </div>
           </div>
@@ -1920,7 +2275,7 @@ const ProfilePage = () => {
               <Users size={24} />
             </div>
             <div className="stat-content">
-              <div className="stat-value">8</div>
+              <div className="stat-value">{nurseShiftStatsLoading ? '—' : nurseShiftStats.patientsServed}</div>
               <div className="stat-label">Пациентов обслужено</div>
             </div>
           </div>
@@ -1929,7 +2284,13 @@ const ProfilePage = () => {
               <Clock size={24} />
             </div>
             <div className="stat-content">
-              <div className="stat-value">4ч 30м</div>
+              <div className="stat-value">
+                {nurseShiftStatsLoading
+                  ? '—'
+                  : nurseShiftStats.workingTimeMinutes === 0
+                    ? '0м'
+                    : `${Math.floor(nurseShiftStats.workingTimeMinutes / 60)}ч ${nurseShiftStats.workingTimeMinutes % 60}м`}
+              </div>
               <div className="stat-label">Рабочего времени</div>
             </div>
           </div>
@@ -1943,21 +2304,72 @@ const ProfilePage = () => {
         </h3>
         <div className="documents-panel">
           <div className="document-actions">
-            <button className="document-action-btn">
+            <button type="button" className="document-action-btn" onClick={downloadShiftReport}>
               <Printer size={16} />
               Сменный отчет
             </button>
-            <button className="document-action-btn">
+            <button type="button" className="document-action-btn" onClick={downloadShiftJournal}>
               <Download size={16} />
               Скачать журнал
-            </button>
-            <button className="document-action-btn">
-              <Upload size={16} />
-              Загрузить данные
             </button>
           </div>
         </div>
       </div>
+
+      {nurseNoteModal && (
+        <div className="patient-modal-overlay active">
+          <div className="patient-modal" style={{ maxWidth: 480 }}>
+            <div className="patient-modal-header">
+              <h3 className="patient-modal-title">Заметка к задаче</h3>
+              <button type="button" className="patient-modal-close" onClick={() => setNurseNoteModal(null)}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="patient-modal-note-content">
+              <textarea
+                className="prescription-textarea"
+                rows={4}
+                value={nurseNoteModal.currentNote}
+                onChange={(e) => setNurseNoteModal((m) => (m ? { ...m, currentNote: e.target.value } : m))}
+                placeholder="Введите заметку…"
+              />
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+                <button type="button" className="add-button" disabled={nurseNoteSaving} onClick={saveTaskNote}>
+                  {nurseNoteSaving ? 'Сохранение…' : 'Сохранить'}
+                </button>
+                <button type="button" className="finance-card-btn secondary" onClick={() => setNurseNoteModal(null)}>
+                  Отмена
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {nurseNewTaskModal && (
+        <NurseNewTaskModal
+          onClose={() => setNurseNewTaskModal(false)}
+          onSuccess={() => {
+            setNurseNewTaskModal(false);
+            const today = new Date().toISOString().split('T')[0];
+            AuthAPI.getMyTasks(nurseTasksPage, nurseTasksPageSize, nurseTasksFilter, today).then((res) => {
+              setNurseTasks({ list: res?.list ?? [], total: res?.total ?? 0, pageSize: res?.pageSize ?? nurseTasksPageSize });
+            });
+          }}
+          openInfo={openInfo}
+        />
+      )}
+
+      {inventoryAddModal && (
+        <InventoryAddModal
+          onClose={() => setInventoryAddModal(false)}
+          onSuccess={() => {
+            setInventoryAddModal(false);
+            fetchInventory();
+          }}
+          openInfo={openInfo}
+        />
+      )}
     </div>
   );
 
@@ -2152,10 +2564,6 @@ const ProfilePage = () => {
               <button className="control-btn" onClick={openResetPasswordsModal}>
                 <Key size={14} />
                 Сбросить пароли
-              </button>
-              <button className="control-btn" onClick={openNotificationSettings}>
-                <BellOff size={14} />
-                Настройки уведомлений
               </button>
             </div>
           </div>
@@ -2610,9 +3018,11 @@ const ProfilePage = () => {
     );
   };
 
-  // Выбор панели в зависимости от типа пользователя
+  const effectiveUserType = currentUser.type === 'admin' || currentUser?.isAdmin ? 'admin' : currentUser.type;
+
+  // Выбор панели в зависимости от типа пользователя (учитываем type и isAdmin для админа)
   const renderUserPanel = () => {
-    switch(currentUser.type) {
+    switch (effectiveUserType) {
       case 'patient':
         return renderPatientPanel();
       case 'nurse':
@@ -2647,11 +3057,11 @@ const ProfilePage = () => {
               <span className="profile-title-highlight">{currentUser.firstName}!</span>
             </h1>
             <p className="profile-description">
-              {currentUser.type === 'patient' 
+              {effectiveUserType === 'patient'
                 ? 'Управляйте вашими записями, историей болезни и персональными данными'
-                : currentUser.type === 'doctor'
+                : effectiveUserType === 'doctor'
                 ? 'Ваше рабочее пространство для ведения пациентов и расписания'
-                : currentUser.type === 'nurse'
+                : effectiveUserType === 'nurse'
                 ? 'Рабочая панель для выполнения процедур и работы с пациентами'
                 : 'Панель управления медицинским центром и системами безопасности'
               }
@@ -2663,14 +3073,14 @@ const ProfilePage = () => {
               <div className="profile-grid">
                 <div className="profile-info-section">
                   <div className="profile-info-header">
-                    <div className="profile-avatar" style={{background: getUserTypeColor(currentUser.type)}}>
-                      {getUserTypeIcon(currentUser.type)}
+                    <div className="profile-avatar" style={{background: getUserTypeColor(effectiveUserType)}}>
+                      {getUserTypeIcon(effectiveUserType)}
                     </div>
                     <div className="profile-name-role">
                       <h2>{currentUser.firstName} {currentUser.lastName}</h2>
                       <div className="profile-role">
-                        <span className="profile-role-badge" style={{background: getUserTypeColor(currentUser.type)}}>
-                          {getUserTypeLabel(currentUser.type)}
+                        <span className="profile-role-badge" style={{background: getUserTypeColor(effectiveUserType)}}>
+                          {getUserTypeLabel(effectiveUserType)}
                         </span>
                         {currentUser.specialty && (
                           <span className="profile-specialty">{currentUser.specialty}</span>
@@ -2838,10 +3248,6 @@ const ProfilePage = () => {
                       <button type="button" className="profile-security-button" onClick={openPasswordModal}>
                         <Key size={16} />
                         Сменить пароль
-                      </button>
-                      <button className="profile-security-button">
-                        <Bell size={16} />
-                        Настройки уведомлений
                       </button>
                       {(currentUser.type === 'admin' || currentUser?.isAdmin) && (
                         <button

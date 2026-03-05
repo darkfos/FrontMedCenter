@@ -27,4 +27,13 @@ export class DoctorAPI {
         const req = await api.get(`/${DoctorAPI.PREFIX}/${id}`);
         return req.data;
     }
+
+    static async setReviewLike(reviewId) {
+        const req = await api.post(`/${DoctorAPI.PREFIX}/set_like`, {}, {
+            params: {
+                reviewId
+            }
+        });
+        return req.data;
+    }
 }

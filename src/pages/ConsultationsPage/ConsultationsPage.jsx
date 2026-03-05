@@ -164,6 +164,7 @@ const ConsultationsPage = () => {
   const handleSubmitBooking = (e) => {
     e.preventDefault();
     if (bookingStep !== 4 || !selectedDoctor?.id || !selectedDate || !selectedTime) return;
+    if (bookedSlotsForDate.includes(selectedTime)) return;
     setBookingSubmitError('');
     setBookingSubmitting(true);
     createAppointment({
@@ -204,9 +205,10 @@ const ConsultationsPage = () => {
   };
 
   const availableDates = availableSlots?.available ?? [];
-  const availableTimesForDate = selectedDate
-    ? (availableDates.find((a) => a.date === selectedDate)?.slots ?? [])
-    : [];
+  const dayData = selectedDate ? availableDates.find((a) => a.date === selectedDate) : null;
+  const freeSlotsForDate = dayData?.slots ?? [];
+  const bookedSlotsForDate = dayData?.bookedSlots ?? [];
+  const allTimesForDate = [...freeSlotsForDate, ...bookedSlotsForDate].sort();
 
   const startBooking = () => {
     setIsBookingModalOpen(true);
@@ -466,20 +468,25 @@ const ConsultationsPage = () => {
                     <p className="step-no-slots">Нет доступных дат на ближайшие 4 недели</p>
                   ) : (
                     <div className="dates-select">
-                      {availableDates.map((a) => (
-                        <button
-                          key={a.date}
-                          type="button"
-                          className={`date-button ${selectedDate === a.date ? 'selected' : ''}`}
-                          onClick={() => handleDateSelect(a.date)}
-                        >
-                          {new Date(a.date + 'T12:00:00').toLocaleDateString('ru-RU', {
-                            weekday: 'short',
-                            day: 'numeric',
-                            month: 'short',
-                          })}
-                        </button>
-                      ))}
+                      {availableDates.map((a) => {
+                        const isDateFullyBooked = (a.slots?.length ?? 0) === 0 && (a.bookedSlots?.length ?? 0) > 0;
+                        return (
+                          <button
+                            key={a.date}
+                            type="button"
+                            className={`date-button ${selectedDate === a.date ? 'selected' : ''} ${isDateFullyBooked ? 'disabled' : ''}`}
+                            disabled={isDateFullyBooked}
+                            title={isDateFullyBooked ? 'Дата забронирована' : undefined}
+                            onClick={() => !isDateFullyBooked && handleDateSelect(a.date)}
+                          >
+                            {new Date(a.date + 'T12:00:00').toLocaleDateString('ru-RU', {
+                              weekday: 'short',
+                              day: 'numeric',
+                              month: 'short',
+                            })}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -494,20 +501,25 @@ const ConsultationsPage = () => {
                       <Loader2 size={24} className="consultations-spinner" />
                       <span>Загрузка слотов...</span>
                     </div>
-                  ) : availableTimesForDate.length === 0 ? (
+                  ) : allTimesForDate.length === 0 ? (
                     <p className="step-no-slots">Нет доступного времени на эту дату</p>
                   ) : (
                     <div className="times-select">
-                      {availableTimesForDate.map((time) => (
-                        <button
-                          key={time}
-                          type="button"
-                          className={`time-button ${selectedTime === time ? 'selected' : ''}`}
-                          onClick={() => handleTimeSelect(time)}
-                        >
-                          {time}
-                        </button>
-                      ))}
+                      {allTimesForDate.map((time) => {
+                        const isBooked = bookedSlotsForDate.includes(time);
+                        return (
+                          <button
+                            key={time}
+                            type="button"
+                            className={`time-button ${selectedTime === time ? 'selected' : ''} ${isBooked ? 'disabled' : ''}`}
+                            disabled={isBooked}
+                            title={isBooked ? 'Дата забронирована' : undefined}
+                            onClick={() => !isBooked && handleTimeSelect(time)}
+                          >
+                            {time}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

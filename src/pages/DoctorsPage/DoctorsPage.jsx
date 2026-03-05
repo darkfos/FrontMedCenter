@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   User,
   Star,
@@ -17,23 +17,41 @@ import {
   Check,
   Sparkles,
   Shield,
-  ChevronRight, Stethoscope, Scissors, Pill
+  ChevronRight,
+  Stethoscope,
+  Scissors,
+  Pill,
+  Loader2,
 } from 'lucide-react';
 import './DoctorsPage.css';
 
-import { ClinicAPI } from "../../api/clinic";
-import { debounce } from "../../utils/debounce";
-import { DoctorAPI } from "../../api/doctor";
+import { ClinicAPI } from '../../api/clinic';
+import { debounce } from '../../utils/debounce';
+import { DoctorAPI } from '../../api/doctor';
 import { useInfoModal } from '../../context/InfoModalContext';
+import { useAuth } from '../../context/AuthContext';
+import { getAvailableSlots, createAppointment } from '../../api/appointments';
 
 const DoctorsPage = () => {
   const { openInfo } = useInfoModal();
+  const navigate = useNavigate();
+  const { currentUser } = useAuth();
   const [selectedSpecialty, setSelectedSpecialty] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDoctor, setSelectedDoctor] = useState(null);
 
   const [clinicCategories, setClinicCategories] = useState([]);
   const [filteredDoctors, setFilteredDoctors] = useState([]);
+
+  // Модалка записи: врач выбран с карточки, шаг 1 — дата, шаг 2 — время
+  const [bookingDoctor, setBookingDoctor] = useState(null);
+  const [bookingStep, setBookingStep] = useState(1);
+  const [bookingDate, setBookingDate] = useState('');
+  const [bookingTime, setBookingTime] = useState('');
+  const [availableSlots, setAvailableSlots] = useState({ available: [] });
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [bookingSubmitting, setBookingSubmitting] = useState(false);
+  const [bookingError, setBookingError] = useState('');
 
   const fetchClinicCategories = useMemo(() => {
     return debounce(async () => {
@@ -80,14 +98,98 @@ const DoctorsPage = () => {
     { icon: Shield, value: '24', label: 'Врача в команде' }
   ];
 
+  const availableDates = availableSlots?.available ?? [];
+  const dayData = bookingDate ? availableDates.find((a) => a.date === bookingDate) : null;
+  const freeSlotsForDate = dayData?.slots ?? [];
+  const bookedSlotsForDate = dayData?.bookedSlots ?? [];
+  const allTimesForDate = [...freeSlotsForDate, ...bookedSlotsForDate].sort();
+
+  useEffect(() => {
+    if (!bookingDoctor?.id) return;
+    setSlotsLoading(true);
+    setAvailableSlots({ available: [] });
+    const today = new Date();
+    const from = today.toISOString().slice(0, 10);
+    const toDate = new Date(today);
+    toDate.setDate(toDate.getDate() + 28);
+    const to = toDate.toISOString().slice(0, 10);
+    getAvailableSlots(bookingDoctor.id, from, to)
+      .then((data) => setAvailableSlots(data ?? { available: [] }))
+      .catch(() => setAvailableSlots({ available: [] }))
+      .finally(() => setSlotsLoading(false));
+  }, [bookingDoctor?.id]);
+
   const handleBookAppointment = (doctor, e) => {
     e.preventDefault();
     e.stopPropagation();
-    openInfo({
-      title: 'Запись на приём',
-      message: `Запись на прием к врачу ${doctor.name}\nСпециализация: ${doctor.position}\nБлижайшее время: ${doctor.nextAvailable}\nМы свяжемся с вами для подтверждения записи.`,
-      variant: 'success',
-    });
+    if (!currentUser) {
+      openInfo({
+        title: 'Вход в аккаунт',
+        message: 'Войдите в аккаунт, чтобы записаться на приём.',
+        variant: 'info',
+      });
+      navigate('/auth');
+      return;
+    }
+    setBookingDoctor(doctor);
+    setBookingStep(1);
+    setBookingDate('');
+    setBookingTime('');
+    setBookingError('');
+  };
+
+  const handleBookingDateSelect = (date) => {
+    setBookingDate(date);
+    setBookingTime('');
+    setBookingStep(2);
+  };
+
+  const handleConfirmBooking = () => {
+    if (!bookingDoctor?.id || !bookingDate || !bookingTime) return;
+    if (bookedSlotsForDate.includes(bookingTime)) return; // на случай если состояние рассинхронизировано
+    setBookingError('');
+    setBookingSubmitting(true);
+    createAppointment({
+      doctorId: bookingDoctor.id,
+      dateVisit: bookingDate,
+      time: bookingTime,
+    })
+      .then(() => {
+        openInfo({
+          title: 'Запись на приём',
+          message: `Запись на приём к врачу ${bookingDoctor.fullName ?? 'Врач'}\nСпециализация: ${bookingDoctor.position ?? '—'}\nДата: ${bookingDate}\nВремя: ${bookingTime}\nМы свяжемся с вами для подтверждения записи.`,
+          variant: 'success',
+        });
+        setBookingDoctor(null);
+        setBookingStep(1);
+        setBookingDate('');
+        setBookingTime('');
+      })
+      .catch((err) => {
+        const msg =
+          err?.response?.data?.message ??
+          (err?.response?.status === 401 ? 'Войдите в аккаунт, чтобы записаться' : 'Не удалось создать запись');
+        setBookingError(msg);
+      })
+      .finally(() => setBookingSubmitting(false));
+  };
+
+  const handleCloseBookingModal = () => {
+    setBookingDoctor(null);
+    setBookingStep(1);
+    setBookingDate('');
+    setBookingTime('');
+    setBookingError('');
+  };
+
+  const handleBackFromBooking = () => {
+    if (bookingStep === 1) {
+      handleCloseBookingModal();
+    } else if (bookingStep === 2) {
+      setBookingDate('');
+      setBookingTime('');
+      setBookingStep(1);
+    }
   };
 
   const handleDoctorCardClick = (doctorId, e) => {
@@ -344,6 +446,140 @@ const DoctorsPage = () => {
           </div>
         </div>
       </section>
+
+      {bookingDoctor && (
+        <div className="doctors-booking-overlay" onClick={handleCloseBookingModal}>
+          <div className="doctors-booking-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="doctors-booking-header">
+              <div className="doctors-booking-header-content">
+                <h2>Запись на приём</h2>
+                <p className="doctors-booking-subtitle">
+                  {bookingDoctor.fullName} — {bookingStep === 1 ? 'шаг 1: дата' : 'шаг 2: время'}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="doctors-booking-close"
+                onClick={handleCloseBookingModal}
+                aria-label="Закрыть"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="doctors-booking-content">
+              {bookingStep === 1 && (
+                <>
+                  <div className="doctors-booking-step">
+                    <h3>Выберите дату</h3>
+                    <p className="doctors-booking-step-desc">Доступные дни по графику врача</p>
+                    {slotsLoading ? (
+                      <div className="doctors-booking-loading">
+                        <Loader2 size={24} className="doctors-booking-spinner" />
+                        <span>Загрузка дат…</span>
+                      </div>
+                    ) : availableDates.length === 0 ? (
+                      <p className="doctors-booking-empty">Нет доступных дат на ближайшие 4 недели</p>
+                    ) : (
+                      <div className="doctors-booking-dates">
+                        {availableDates.map((a) => {
+                          const isDateFullyBooked = (a.slots?.length ?? 0) === 0 && (a.bookedSlots?.length ?? 0) > 0;
+                          return (
+                            <button
+                              key={a.date}
+                              type="button"
+                              className={`doctors-booking-date-btn ${bookingDate === a.date ? 'selected' : ''} ${isDateFullyBooked ? 'disabled' : ''}`}
+                              disabled={isDateFullyBooked}
+                              title={isDateFullyBooked ? 'Дата забронирована' : undefined}
+                              onClick={() => !isDateFullyBooked && handleBookingDateSelect(a.date)}
+                            >
+                              {new Date(a.date + 'T12:00:00').toLocaleDateString('ru-RU', {
+                                weekday: 'short',
+                                day: 'numeric',
+                                month: 'short',
+                              })}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  <div className="doctors-booking-actions">
+                    <button type="button" className="doctors-booking-back" onClick={handleCloseBookingModal}>
+                      Отмена
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {bookingStep === 2 && bookingDate && (
+                <>
+                  <div className="doctors-booking-step">
+                    <h3>Выберите время</h3>
+                    <p className="doctors-booking-step-desc">
+                      {new Date(bookingDate + 'T12:00:00').toLocaleDateString('ru-RU', {
+                        weekday: 'short',
+                        day: 'numeric',
+                        month: 'short',
+                      })}
+                    </p>
+                    {slotsLoading ? (
+                      <div className="doctors-booking-loading">
+                        <Loader2 size={24} className="doctors-booking-spinner" />
+                        <span>Загрузка времени…</span>
+                      </div>
+                    ) : allTimesForDate.length === 0 ? (
+                      <p className="doctors-booking-empty">Нет доступного времени на эту дату</p>
+                    ) : (
+                      <div className="doctors-booking-times">
+                        {allTimesForDate.map((time) => {
+                          const isBooked = bookedSlotsForDate.includes(time);
+                          return (
+                            <button
+                              key={time}
+                              type="button"
+                              className={`doctors-booking-time-btn ${bookingTime === time ? 'selected' : ''} ${isBooked ? 'disabled' : ''}`}
+                              disabled={isBooked}
+                              title={isBooked ? 'Дата забронирована' : undefined}
+                              onClick={() => !isBooked && setBookingTime(time)}
+                            >
+                              {time}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {bookingError && <p className="doctors-booking-error">{bookingError}</p>}
+                  </div>
+                  <div className="doctors-booking-actions">
+                    <button type="button" className="doctors-booking-back" onClick={handleBackFromBooking}>
+                      Назад
+                    </button>
+                    <button
+                      type="button"
+                      className="doctors-booking-confirm"
+                      disabled={!bookingTime || bookingSubmitting}
+                      onClick={handleConfirmBooking}
+                    >
+                      {bookingSubmitting ? (
+                        <>
+                          <Loader2 size={18} className="doctors-booking-spinner" />
+                          <span>Оформление…</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check size={18} />
+                          <span>Подтвердить запись</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

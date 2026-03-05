@@ -892,6 +892,26 @@
   color: white;
 }
 
+.service-booking-date-btn.disabled,
+.service-booking-time-btn.disabled,
+.service-booking-date-btn:disabled,
+.service-booking-time-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+  color: #94a3b8;
+}
+
+.service-booking-date-btn.disabled:hover,
+.service-booking-time-btn.disabled:hover,
+.service-booking-date-btn:disabled:hover,
+.service-booking-time-btn:disabled:hover {
+  border-color: #e2e8f0;
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+
 .service-booking-error {
   margin-top: 1rem;
   padding: 0.75rem;

@@ -25,6 +25,7 @@ import {
 import './DoctorDetailPage.css';
 import { DoctorAPI } from '../../api/doctor';
 import { ReviewAPI } from '../../api/review';
+import { getAvailableSlots, createAppointment } from '../../api/appointments';
 import { useAuth } from '../../context/AuthContext';
 import { useInfoModal } from '../../context/InfoModalContext';
 
@@ -62,6 +63,7 @@ const DoctorDetailPage = () => {
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [bookingStep, setBookingStep] = useState(1);
+  const [key, setKey] = useState(0);
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -71,6 +73,10 @@ const DoctorDetailPage = () => {
   });
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
+  const [availableSlotsData, setAvailableSlotsData] = useState({ available: [] });
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [bookingSubmitError, setBookingSubmitError] = useState('');
+  const [bookingSubmitting, setBookingSubmitting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -100,7 +106,7 @@ const DoctorDetailPage = () => {
           rating: r.rating ?? 0,
           text: r.message ?? '',
           verified: false,
-          likes: 0
+          likes: r.likes ?? 0
         })));
       })
       .catch((err) => {
@@ -113,7 +119,22 @@ const DoctorDetailPage = () => {
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [id]);
+  }, [id, key]);
+
+  useEffect(() => {
+    if (!isBookingModalOpen || !doctor?.id) return;
+    setSlotsLoading(true);
+    setAvailableSlotsData({ available: [] });
+    const today = new Date();
+    const from = today.toISOString().slice(0, 10);
+    const toDate = new Date(today);
+    toDate.setDate(toDate.getDate() + 28);
+    const to = toDate.toISOString().slice(0, 10);
+    getAvailableSlots(doctor.id, from, to)
+      .then((data) => setAvailableSlotsData(data ?? { available: [] }))
+      .catch(() => setAvailableSlotsData({ available: [] }))
+      .finally(() => setSlotsLoading(false));
+  }, [isBookingModalOpen, doctor?.id]);
 
   const imageColor = doctor ? (AVATAR_COLORS[doctor.id % AVATAR_COLORS.length]) : '#10b981';
   const scheduleStr = doctor?.dayWork?.days?.length && doctor?.scheduleWork
@@ -225,10 +246,11 @@ const DoctorDetailPage = () => {
       });
   };
 
-  const handleLikeReview = (reviewId) => {
-    setReviews(reviews.map(review => 
-      review.id === reviewId ? { ...review, likes: review.likes + 1 } : review
-    ));
+  const handleLikeReview = async (reviewId) => {
+    await DoctorAPI.setReviewLike(reviewId);
+    setTimeout(() => {
+      setKey(state => state + 1);
+    }, 500);
   };
 
   const handleFormChange = (e) => {
@@ -240,21 +262,37 @@ const DoctorDetailPage = () => {
 
   const handleSubmitBooking = (e) => {
     e.preventDefault();
-    if (bookingStep === 4) {
-      openInfo({
-        title: 'Запись оформлена',
-        message: `Запись успешно оформлена!\nВрач: ${doctorName}\nДата: ${selectedDate}\nВремя: ${selectedTime}\nТип: ${formData.consultationType === 'in-person' ? 'Очная' : 'Онлайн'}\nМы свяжемся с вами для подтверждения.`,
-        variant: 'success',
-      });
-      setIsBookingModalOpen(false);
-      resetBooking();
-    }
+    if (bookingStep !== 4 || !doctor?.id || !selectedDate || !selectedTime) return;
+    if (bookedSlotsForDate.includes(selectedTime)) return;
+    setBookingSubmitError('');
+    setBookingSubmitting(true);
+    createAppointment({
+      doctorId: doctor.id,
+      dateVisit: selectedDate,
+      time: selectedTime,
+    })
+      .then(() => {
+        openInfo({
+          title: 'Запись оформлена',
+          message: `Запись успешно оформлена!\nВрач: ${doctorName}\nДата: ${selectedDate}\nВремя: ${selectedTime}\nТип: ${formData.consultationType === 'in-person' ? 'Очная' : 'Онлайн'}\nМы свяжемся с вами для подтверждения.`,
+          variant: 'success',
+        });
+        setIsBookingModalOpen(false);
+        resetBooking();
+      })
+      .catch((err) => {
+        const msg = err?.response?.data?.message ?? (err?.response?.status === 401 ? 'Войдите в аккаунт, чтобы записаться' : 'Не удалось создать запись');
+        setBookingSubmitError(msg);
+      })
+      .finally(() => setBookingSubmitting(false));
   };
 
   const resetBooking = () => {
     setSelectedDate('');
     setSelectedTime('');
     setBookingStep(1);
+    setAvailableSlotsData({ available: [] });
+    setBookingSubmitError('');
     setFormData({
       name: '',
       phone: '',
@@ -293,8 +331,11 @@ const DoctorDetailPage = () => {
       description: 'Консультация по видеосвязи из любого места'
     }
   ];
-  const availableDates = doctor.availableDates ?? [];
-  const availableTimes = doctor.availableTimes ?? [];
+  const availableSlotsList = availableSlotsData?.available ?? [];
+  const dayData = selectedDate ? availableSlotsList.find((a) => a.date === selectedDate) : null;
+  const freeSlotsForDate = dayData?.slots ?? [];
+  const bookedSlotsForDate = dayData?.bookedSlots ?? [];
+  const allTimesForDate = [...freeSlotsForDate, ...bookedSlotsForDate].sort();
   const doctorName = doctor.fullName;
 
   return (
@@ -718,22 +759,30 @@ const DoctorDetailPage = () => {
                 <div className="doctor-detail-step-content">
                   <h3>Выберите дату</h3>
                   <div className="doctor-detail-dates-select">
-                    {availableDates.length === 0 ? (
+                    {slotsLoading ? (
+                      <p className="doctor-detail-no-slots">Загрузка дат…</p>
+                    ) : availableSlotsList.length === 0 ? (
                       <p className="doctor-detail-no-slots">Нет доступных слотов. Обратитесь в регистратуру.</p>
                     ) : (
-                      availableDates.map((date, index) => (
-                        <button
-                          key={index}
-                          className={`doctor-detail-date-button ${selectedDate === date ? 'selected' : ''}`}
-                          onClick={() => handleDateSelect(date)}
-                        >
-                          {new Date(date).toLocaleDateString('ru-RU', { 
-                            weekday: 'short', 
-                            day: 'numeric',
-                            month: 'short'
-                          })}
-                        </button>
-                      ))
+                      availableSlotsList.map((a) => {
+                        const isDateFullyBooked = (a.slots?.length ?? 0) === 0 && (a.bookedSlots?.length ?? 0) > 0;
+                        return (
+                          <button
+                            key={a.date}
+                            type="button"
+                            className={`doctor-detail-date-button ${selectedDate === a.date ? 'selected' : ''} ${isDateFullyBooked ? 'disabled' : ''}`}
+                            disabled={isDateFullyBooked}
+                            title={isDateFullyBooked ? 'Дата забронирована' : undefined}
+                            onClick={() => !isDateFullyBooked && handleDateSelect(a.date)}
+                          >
+                            {new Date(a.date + 'T12:00:00').toLocaleDateString('ru-RU', {
+                              weekday: 'short',
+                              day: 'numeric',
+                              month: 'short',
+                            })}
+                          </button>
+                        );
+                      })
                     )}
                   </div>
                 </div>
@@ -743,18 +792,26 @@ const DoctorDetailPage = () => {
                 <div className="doctor-detail-step-content">
                   <h3>Выберите время</h3>
                   <div className="doctor-detail-times-select">
-                    {availableTimes.length === 0 ? (
+                    {slotsLoading ? (
+                      <p className="doctor-detail-no-slots">Загрузка времени…</p>
+                    ) : allTimesForDate.length === 0 ? (
                       <p className="doctor-detail-no-slots">Нет доступного времени.</p>
                     ) : (
-                      availableTimes.map((time, index) => (
-                        <button
-                          key={index}
-                          className={`doctor-detail-time-button ${selectedTime === time ? 'selected' : ''}`}
-                          onClick={() => handleTimeSelect(time)}
-                        >
-                          {time}
-                        </button>
-                      ))
+                      allTimesForDate.map((time) => {
+                        const isBooked = bookedSlotsForDate.includes(time);
+                        return (
+                          <button
+                            key={time}
+                            type="button"
+                            className={`doctor-detail-time-button ${selectedTime === time ? 'selected' : ''} ${isBooked ? 'disabled' : ''}`}
+                            disabled={isBooked}
+                            title={isBooked ? 'Дата забронирована' : undefined}
+                            onClick={() => !isBooked && handleTimeSelect(time)}
+                          >
+                            {time}
+                          </button>
+                        );
+                      })
                     )}
                   </div>
                 </div>
@@ -764,6 +821,9 @@ const DoctorDetailPage = () => {
                 <div className="doctor-detail-step-content">
                   <h3>Ваши данные</h3>
                   <form onSubmit={handleSubmitBooking}>
+                    {bookingSubmitError && (
+                      <p className="doctor-detail-booking-error">{bookingSubmitError}</p>
+                    )}
                     <div className="doctor-detail-form-group">
                       <label>Имя и фамилия *</label>
                       <input
@@ -816,8 +876,12 @@ const DoctorDetailPage = () => {
                       <p><strong>Стоимость:</strong> {formatPrice(doctor.consultPrice)}</p>
                     </div>
                     
-                    <button type="submit" className="doctor-detail-submit-booking-button">
-                      Подтвердить запись
+                    <button
+                      type="submit"
+                      className="doctor-detail-submit-booking-button"
+                      disabled={bookingSubmitting}
+                    >
+                      {bookingSubmitting ? 'Оформление…' : 'Подтвердить запись'}
                     </button>
                   </form>
                 </div>
