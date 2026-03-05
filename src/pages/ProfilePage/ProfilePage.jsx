@@ -92,7 +92,7 @@ function InventoryAddModal({ onClose, onSuccess, openInfo }) {
             <X size={20} />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="patient-modal-content">
+        <form onSubmit={handleSubmit} className="patient-modal-content" style={{ flexDirection: 'column' }}>
           <input
             className="prescription-input"
             placeholder="Название (например: Шприцы 5мл)"
@@ -169,7 +169,7 @@ function NurseNewTaskModal({ onClose, onSuccess, openInfo }) {
             <X size={20} />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="patient-modal-content">
+        <form onSubmit={handleSubmit} className="patient-modal-content" style={{ flexDirection: 'column' }}>
           <input
             className="prescription-input"
             placeholder="ФИО пациента"
@@ -1484,7 +1484,7 @@ const ProfilePage = () => {
             </button>
           </div>
 
-          <div className="patient-modal-content">
+          <div className="patient-modal-content" style={{ flexDirection: 'column' }}>
             <div className="patient-modal-tabs">
               <button
                 className={`patient-modal-tab ${activeTab === 'profile' ? 'active' : ''}`}
